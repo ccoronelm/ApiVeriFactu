@@ -9,6 +9,7 @@ using gesFactu.Infrastructure.VeriFactu;
 using gesFactu.Infrastructure.Integrations.VeriFactu;
 using gesFactu.Infrastructure.Integrations.VeriFactu.Signature;
 using gesFactu.Infrastructure.Integrations.VeriFactu.Validation;
+using gesFactu.Infrastructure.Integrations.VeriFactu.XmlGeneration;
 using gesFactu.Infrastructure.Integrations.QRCode;
 using gesFactu.Infrastructure.Outbox;
 
@@ -58,6 +59,9 @@ public static class DependencyInjection
         // Servicios de firma y validación XML
         services.AddScoped<IXmlSignatureService, XmlSignatureServiceStub>();
         services.AddScoped<IXmlSchemaValidator, XmlSchemaValidatorStub>();
+
+        // Generador de XML conforme a AEAT
+        services.AddScoped<VeriFactuXmlGenerator>();
 
         // Servicio background para procesar outbox
         services.AddHostedService<OutboxProcessorService>();
