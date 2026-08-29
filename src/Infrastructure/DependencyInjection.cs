@@ -7,6 +7,8 @@ using gesFactu.Infrastructure.Persistence;
 using gesFactu.Infrastructure.Persistence.Repositories;
 using gesFactu.Infrastructure.VeriFactu;
 using gesFactu.Infrastructure.Integrations.VeriFactu;
+using gesFactu.Infrastructure.Integrations.VeriFactu.Signature;
+using gesFactu.Infrastructure.Integrations.VeriFactu.Validation;
 using gesFactu.Infrastructure.Integrations.QRCode;
 using gesFactu.Infrastructure.Outbox;
 
@@ -52,6 +54,10 @@ public static class DependencyInjection
 
         // Cliente AEAT: configurable (stub en desarrollo, SOAP real en producción)
         services.AddVeriFactuClient(configuration);
+
+        // Servicios de firma y validación XML
+        services.AddScoped<IXmlSignatureService, XmlSignatureServiceStub>();
+        services.AddScoped<IXmlSchemaValidator, XmlSchemaValidatorStub>();
 
         // Servicio background para procesar outbox
         services.AddHostedService<OutboxProcessorService>();
