@@ -1,0 +1,182 @@
+using MediatR;
+using Microsoft.AspNetCore.Mvc;
+using gesFactu.Application.Common;
+using gesFactu.Application.RegistrosFacturacion.Commands.CrearRegistro;
+
+namespace gesFactu.Api.Controllers.v1;
+
+/// <summary>
+/// API para operaciones con registros de facturación.
+/// </summary>
+[ApiController]
+[Route("api/v1/[controller]")]
+[Produces("application/json")]
+public class BillingRecordsController : ControllerBase
+{
+    private readonly IMediator _mediator;
+    private readonly ILogger<BillingRecordsController> _logger;
+
+    public BillingRecordsController(IMediator mediator, ILogger<BillingRecordsController> logger)
+    {
+        _mediator = mediator;
+        _logger = logger;
+    }
+
+    /// <summary>
+    /// Crea un nuevo registro de facturación.
+    /// </summary>
+    /// <param name="request">Datos de la factura a registrar</param>
+    /// <param name="cancellationToken">Token de cancelación</param>
+    /// <returns>Registro creado</returns>
+    [HttpPost]
+    [ProducesResponseType(StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> CreateBillingRecord(
+        [FromBody] CreateBillingRecordRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!ModelState.IsValid)
+        {
+            return BadRequest(new ProblemDetails
+            {
+                Type = "https://tools.ietf.org/html/rfc9110#section-15.5.1",
+                Title = "Validation Failed",
+                Status = StatusCodes.Status400BadRequest,
+                Detail = "El registro de facturación no cumple con los requisitos",
+                Instance = HttpContext.Request.Path
+            });
+        }
+
+        _logger.LogInformation(
+            "Recibida solicitud para crear registro de facturación: {Series}/{Number}",
+            request.InvoiceSeries,
+            request.InvoiceNumber);
+
+        var command = new CreateBillingRecordCommand(
+            request.IssuerNif,
+            request.InvoiceSeries,
+            request.InvoiceNumber,
+            request.IssueDate,
+            request.IssuerName,
+            request.Description,
+            request.TotalAmount,
+            request.TotalTaxAmount,
+            request.PreviousRecordHash);
+
+        var result = await _mediator.Send(command, cancellationToken);
+
+        return result switch
+        {
+            Result<CreateBillingRecordResponse>.SuccessWithValue success =>
+                CreatedAtAction(
+                    nameof(GetBillingRecord),
+                    new { id = success.Value.BillingRecordId },
+                    success.Value),
+
+            Result<CreateBillingRecordResponse>.ValidationError validationError =>
+                BadRequest(new ProblemDetails
+                {
+                    Type = "https://tools.ietf.org/html/rfc9110#section-15.5.1",
+                    Title = "Validation Failed",
+                    Status = StatusCodes.Status400BadRequest,
+                    Detail = validationError.Message,
+                    Instance = HttpContext.Request.Path,
+                    Extensions = new Dictionary<string, object?> { { "field", validationError.PropertyName } }
+                }),
+
+            Result<CreateBillingRecordResponse>.DomainError domainError =>
+                BadRequest(new ProblemDetails
+                {
+                    Type = "https://tools.ietf.org/html/rfc9110#section-15.5.1",
+                    Title = "Business Rule Violation",
+                    Status = StatusCodes.Status400BadRequest,
+                    Detail = domainError.Message,
+                    Instance = HttpContext.Request.Path
+                }),
+
+            Result<CreateBillingRecordResponse>.UnexpectedError unexpectedError =>
+                StatusCode(StatusCodes.Status500InternalServerError, new ProblemDetails
+                {
+                    Type = "https://tools.ietf.org/html/rfc9110#section-15.6.1",
+                    Title = "Internal Server Error",
+                    Status = StatusCodes.Status500InternalServerError,
+                    Detail = unexpectedError.Message,
+                    Instance = HttpContext.Request.Path
+                }),
+
+            _ => StatusCode(StatusCodes.Status500InternalServerError, new ProblemDetails
+            {
+                Type = "https://tools.ietf.org/html/rfc9110#section-15.6.1",
+                Title = "Internal Server Error",
+                Status = StatusCodes.Status500InternalServerError,
+                Detail = "Error desconocido",
+                Instance = HttpContext.Request.Path
+            })
+        };
+    }
+
+    /// <summary>
+    /// Obtiene un registro de facturación por ID.
+    /// (Placeholder - se implementará después)
+    /// </summary>
+    [HttpGet("{id}")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetBillingRecord(int id)
+    {
+        // TODO: Implementar consulta de registro
+        return NotFound();
+    }
+}
+
+/// <summary>
+/// Contrato de solicitud para crear un registro de facturación.
+/// </summary>
+public sealed record CreateBillingRecordRequest
+{
+    /// <summary>
+    /// NIF/CIF del emisor de la factura
+    /// </summary>
+    public required string IssuerNif { get; init; }
+
+    /// <summary>
+    /// Serie de la factura (ej: "A", "2025-001")
+    /// </summary>
+    public required string InvoiceSeries { get; init; }
+
+    /// <summary>
+    /// Número de la factura dentro de la serie
+    /// </summary>
+    public required string InvoiceNumber { get; init; }
+
+    /// <summary>
+    /// Fecha de expedición (formato: dd-MM-yyyy)
+    /// </summary>
+    public required string IssueDate { get; init; }
+
+    /// <summary>
+    /// Nombre o razón social del emisor
+    /// </summary>
+    public required string IssuerName { get; init; }
+
+    /// <summary>
+    /// Descripción de la operación/concepto
+    /// </summary>
+    public required string Description { get; init; }
+
+    /// <summary>
+    /// Importe total de la factura (base + impuestos)
+    /// </summary>
+    public required decimal TotalAmount { get; init; }
+
+    /// <summary>
+    /// Cuota total de impuesto
+    /// </summary>
+    public required decimal TotalTaxAmount { get; init; }
+
+    /// <summary>
+    /// Hash del registro anterior (para encadenamiento)
+    /// </summary>
+    public string? PreviousRecordHash { get; init; }
+}
