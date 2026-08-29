@@ -1,132 +1,244 @@
-# Plan de desarrollo completo - gesFactu
+# Plan Maestro de Desarrollo - gesFactu
 
-## Fases implementadas ?
+## ?? Resumen de Fases
 
-### Fase 1: Infraestructura base
-- ? Clean Architecture correctamente estructurada
-- ? CQRS + MediatR
-- ? Result Pattern
-- ? DependencyInjection en cada capa
-- ? Logging estructurado (Serilog)
-- ? Middleware global de errores
-
-### Fase 2: Primer caso de uso - Crear Registro
-- ? Value Objects (TaxpayerNif, InvoiceSeries, InvoiceNumber, InvoiceIdentifier, Money, TaxRate)
-- ? Agregado BillingRecord
-- ? CreateBillingRecordCommand + Handler + Validator
-- ? BillingRecordsController (POST)
-- ? ApplicationDbContext
-
-### Fase 3: Hash/Huella
-- ? IHashCalculator puerto
-- ? Sha256HashCalculator implementación
-- ? 10 tests unitarios pasados
-- ? Integración en handler
-
-## Fases pendientes ??
-
-### Fase 4: Persistencia y Queries
-- [ ] IBillingRecordRepository
-- [ ] BillingRecordRepository (EF Core)
-- [ ] GetBillingRecordQuery + Handler
-- [ ] GetBillingRecordByIdQuery + Handler
-- [ ] EF Core Configuration/Mapping para Value Objects
-- [ ] EF Core Migrations
-
-### Fase 5: Anti-Corruption Layer AEAT
-- [ ] IVeriFactuGatewayAdapter
-- [ ] VeriFactuGatewayAdapter (implementación básica)
-- [ ] Mappers: AEAT types ? internal models
-- [ ] XSD/WSDL client generation (Refit/HttpClient)
-- [ ] Error mapping (AEAT ? internal)
-
-### Fase 6: Envío a AEAT
-- [ ] SubmitBillingRecordCommand
-- [ ] SubmitBillingRecordCommandHandler
-- [ ] Certificado digital (carga y validación)
-- [ ] Firma XML
-- [ ] Generación de XML para AEAT
-- [ ] Integración con gateway
-
-### Fase 7: Transactional Outbox
-- [ ] OutboxMessage entity
-- [ ] OutboxMessageConfiguration
-- [ ] OutboxProcessor background service
-- [ ] OutboxMessageRepository
-- [ ] Idempotencia en processor
-
-### Fase 8: Encadenamiento y Concurrencia
-- [ ] Lógica de obtención de "registro anterior"
-- [ ] Lock pessimista en BD (UPDLOCK hint)
-- [ ] Tests de concurrencia
-- [ ] Validación de cadena
-
-### Fase 9: Resiliencia y Retry
-- [ ] Polly HttpClientFactory con retry
-- [ ] Circuit breaker
-- [ ] Backoff exponencial
-- [ ] Transient error classification
-
-### Fase 10: Anulación de registros
-- [ ] CancelBillingRecordCommand
-- [ ] RegistroAnulacion entity
-- [ ] Validaciones de anulación
-
-### Fase 11: Tests
-- [ ] Tests unitarios completos
-- [ ] Tests de integración
-- [ ] Tests de concurrencia
-- [ ] Tests de AEAT gateway
-
-### Fase 12: Documentación y pulido
-- [ ] README.md principal
-- [ ] API documentation
-- [ ] Architecture decisions
-- [ ] Deployment guide
+**Estado Actual:** Fase 6 en progreso (Tests de Persistencia)
 
 ---
 
-## Orden de ejecución (PRIORIZADO)
+## ? Fases Completadas
 
-1. **Fase 4** - Persistencia (repo + queries) ? Sin esto no se puede probar nada
-2. **Fase 5** - Anti-Corruption Layer básico ? Necesario para envío
-3. **Fase 6** - Envío a AEAT ? Caso de uso crítico
-4. **Fase 7** - Outbox ? Resiliencia y idempotencia
-5. **Fase 8** - Encadenamiento ? Lógica fiscal crítica
-6. **Fase 9** - Resiliencia ? Ya en Outbox/Envío
-7. **Fase 10** - Anulación ? Segundo caso de uso
-8. **Fase 11** - Tests exhaustivos ? Al final
-9. **Fase 12** - Documentación ? Al final
+### **Fase 0: Inicialización (? Completada)**
+- [x] Repositorio Git inicializado en `backend`
+- [x] Remoto GitHub privado configurado
+- [x] Instrucciones Copilot creadas y documentadas en `.github/copilot-instructions.md`
+
+### **Fase 1: Base Clean Architecture (? Completada)**
+- [x] Proyectos creados: Domain, Application, Infrastructure, Api, Tests
+- [x] Eliminadas dependencias incorrectas de Domain
+- [x] Configurado resultado Pattern con discriminated records
+- [x] Middleware global de excepciones
+- [x] Logging estructurado con Serilog
+
+### **Fase 2: Primer Caso de Uso - Crear Registro (? Completada)**
+- [x] Entidad `BillingRecord` agregado raíz
+- [x] Value Objects: `TaxpayerNif`, `InvoiceSeries`, `InvoiceNumber`, `InvoiceIdentifier`, `Money`
+- [x] Comando `CreateBillingRecordCommand` + Handler + Validator
+- [x] Endpoint API `POST /api/v1/BillingRecords`
+
+### **Fase 3: Hash/Huella VERI*FACTU (? Completada)**
+- [x] `IHashCalculator` (puerto)
+- [x] `Sha256HashCalculator` (implementación)
+- [x] `BillingRecordHashInput` (modelo de entrada determinista)
+- [x] 10 tests de hash pasando
+- [x] Documentación en `docs/HASH_CALCULATION.md`
+
+### **Fase 4: Repository Pattern + Query (? Completada)**
+- [x] `IBillingRecordRepository` definido
+- [x] Implementación EF Core `BillingRecordRepository`
+- [x] Query `GetBillingRecordQuery` + Handler
+- [x] Endpoint API `GET /api/v1/BillingRecords/{id}`
+
+### **Fase 5: Value Objects en EF Core + Migraciones (? Completada)**
+- [x] Refactorizado `BillingRecord` con propiedades desnormalizadas para EF Core
+- [x] `BillingRecordConfiguration` con mapeo simplificado
+- [x] `ApplicationDbContextFactory` para diseño de tiempo EF Core
+- [x] Migración inicial `InitialCreate` generada y aplicada
+- [x] Base de datos SQL Server local funcional
+- [x] Commit `6199a6d` subido
 
 ---
 
-## Commits esperados
+## ?? Fases En Progreso / Pendientes
 
-- [ ] Commit: Repository pattern + EF Core mappings
-- [ ] Commit: Queries (GetBillingRecord, ListBillingRecords)
-- [ ] Commit: Anti-Corruption Layer AEAT
-- [ ] Commit: Submit to AEAT + Certificate handling
-- [ ] Commit: Outbox pattern implementation
-- [ ] Commit: Chaining logic with concurrency
-- [ ] Commit: Resilience policies (Polly)
-- [ ] Commit: Cancellation records
-- [ ] Commit: Unit + integration tests
-- [ ] Commit: Documentation + README
+### **Fase 6: Tests de Persistencia (? ACTUAL)**
 
-**Total esperado: ~10-12 commits**
+**Objetivo:** Validar que el repositorio, las queries y la persistencia funcionan correctamente
+
+**Tareas:**
+- [x] Crear `BillingRecordRepositoryTests` (xUnit + EF Core InMemory)
+- [x] Tests de `AddAsync`, `GetByIdAsync`, `GetPreviousRecordAsync`
+- [x] Tests de `UpdateSubmissionStatusAsync`, `UpdateAeatStatusAsync`
+- [x] Tests de actualización de hash
+- [x] Fixture de base de datos de prueba (SQL Server local opcional)
+- [x] Tests de integración de queries en API
+
+**Prioridad:** ALTA - Validar la capa de persistencia antes de avanzar a AEAT
 
 ---
 
-## Estimación de tiempo
+### **Fase 7: Anti-Corruption Layer AEAT (Bloque siguiente)**
 
-- Fase 4: 30 min
-- Fase 5: 45 min
-- Fase 6: 60 min
-- Fase 7: 45 min
-- Fase 8: 45 min
-- Fase 9: 30 min
-- Fase 10: 30 min
-- Fase 11: 90 min
-- Fase 12: 30 min
+**Objetivo:** Definir los puertos e interfaces para la comunicación con AEAT
 
-**Total: ~5-6 horas de desarrollo**
+**Tareas:**
+- [ ] `IVeriFactuGateway` (puerto principal)
+- [ ] `VeriFactuRequest` / `VeriFactuResponse` (DTOs de aplicación)
+- [ ] WSDL/XSD scaffolding (esperar documentos locales o usar proxy)
+- [ ] Mapeador de dominio ? SOAP request
+- [ ] Mapeador de SOAP response ? resultado aplicación
+- [ ] Manejo de errores AEAT específicos
+- [ ] Tests unitarios de mapeos
+
+**Prioridad:** ALTA - Necesario para caso de uso "Enviar a AEAT"
+
+---
+
+### **Fase 8: Transactional Outbox (Bloque siguiente)**
+
+**Objetivo:** Garantizar entrega confiable de mensajes a AEAT bajo fallos
+
+**Tareas:**
+- [ ] Entidad `OutboxMessage`
+- [ ] Configuración EF Core para Outbox
+- [ ] Migración Outbox
+- [ ] `IOutboxStore` puerto
+- [ ] `OutboxMessageProcessor` (worker background)
+- [ ] Procesador idempotente (by `CorrelationId`)
+- [ ] Tests de múltiples intentos y duplicados
+- [ ] Integración con `IVeriFactuGateway`
+
+**Prioridad:** ALTA - Base para resiliencia
+
+---
+
+### **Fase 9: Envío a AEAT (Comando)**
+
+**Objetivo:** Implementar `EnviarRegistroAEATCommand`
+
+**Tareas:**
+- [ ] Comando `EnviarRegistroAEATCommand`
+- [ ] Validator (registro debe estar pendiente, hash debe existir)
+- [ ] Handler (crear Outbox, llamar gateway, actualizar estado)
+- [ ] Endpoint `POST /api/v1/BillingRecords/{id}/submit`
+- [ ] Manejo de respuestas AEAT (aceptado, rechazado, error)
+- [ ] Tests de happy path y error cases
+
+**Prioridad:** ALTA
+
+---
+
+### **Fase 10: Anulación de Registros (Comando)**
+
+**Objetivo:** Implementar `CancelarRegistroCommand` conforme a VERI*FACTU
+
+**Tareas:**
+- [ ] Revisar `/VERIFACTU` para estructura de cancellations
+- [ ] Entidad `CancellationRecord` (agregado aparte o parte de BillingRecord)
+- [ ] Comando `CancelarRegistroCommand`
+- [ ] Validaciones de reglas de anulación
+- [ ] Manejo de hash para anulaciones
+- [ ] Endpoint `POST /api/v1/BillingRecords/{id}/cancel`
+- [ ] Tests
+
+**Prioridad:** MEDIA - Después de envío funcional
+
+---
+
+### **Fase 11: Resiliencia y Retry**
+
+**Objetivo:** Políticas de reintento y circuit breaker
+
+**Tareas:**
+- [ ] Polly policies (retry exponencial, circuit breaker)
+- [ ] Transient vs permanent error classification en AEAT responses
+- [ ] Max retry limits y backoff
+- [ ] Telemetría de reintentos
+- [ ] Tests de resiliencia
+
+**Prioridad:** MEDIA - Después de Outbox funcional
+
+---
+
+### **Fase 12: Registro de Envíos (Entidad)**
+
+**Objetivo:** Rastrear todos los intentos de envío
+
+**Tareas:**
+- [ ] Entidad `SubmissionAttempt`
+- [ ] Relación con `BillingRecord`
+- [ ] Campos: timestamp, request payload (sin secrets), response, error details
+- [ ] Configuración EF Core
+- [ ] Migración
+- [ ] Queries por registro
+
+**Prioridad:** MEDIA - Observabilidad
+
+---
+
+### **Fase 13: QR / Código QR**
+
+**Objetivo:** Generación de QR conforme a VERI*FACTU
+
+**Tareas:**
+- [ ] Revisar `/VERIFACTU` QR requirements
+- [ ] `IQRGenerator` (puerto)
+- [ ] Implementación (e.g., `QRNet`, `ZXing`)
+- [ ] Contenido del QR (NIF, serie, número, hash, timestamp)
+- [ ] Integración en handler de creación
+- [ ] Tests
+
+**Prioridad:** MEDIA - Requerimiento VERI*FACTU
+
+---
+
+### **Fase 14: Consultas Avanzadas**
+
+**Objetivo:** Queries para búsqueda y reportes
+
+**Tareas:**
+- [ ] `GetBillingRecordsPagedQuery` con filtros
+- [ ] Filtrar por NIF, serie, status, fecha
+- [ ] Endpoints `/api/v1/BillingRecords?nif=...&status=...`
+- [ ] Paginación
+- [ ] Sorting
+
+**Prioridad:** MEDIA
+
+---
+
+### **Fase 15: Documentación y Ejemplos**
+
+**Objetivo:** README, Postman, ejemplos de uso
+
+**Tareas:**
+- [ ] README.md completo
+- [ ] Colección Postman
+- [ ] Ejemplos de integración cliente
+- [ ] Swagger/OpenAPI mejorado
+- [ ] Diagrama de arquitectura
+
+**Prioridad:** BAJA - Final
+
+---
+
+## ?? Roadmap Resumido por Bloque
+
+| Bloque | Fases | Estado | ETA |
+|--------|-------|--------|-----|
+| **MVP Básico** | 0-5 | ? Completo | - |
+| **Persistencia y Queries** | 6 | ?? En progreso | +1h |
+| **AEAT Integration** | 7-9 | ? Próximo | +3-4h |
+| **Resiliencia** | 8, 11 | ? Siguiente | +2h |
+| **Funcionalidades Avanzadas** | 10, 12-14 | ? Después | +3-4h |
+| **Documentación** | 15 | ? Final | +1h |
+
+---
+
+## ?? Notas Generales
+
+- Todas las fases respetan Clean Architecture
+- Hash y encadenamiento implementados deterministicamente
+- Value Objects protegen invariantes de dominio
+- AEAT separado mediante Anti-Corruption Layer
+- Outbox garantiza entrega sin duplicados
+- Pruebas enfocadas en casos críticos fiscales
+
+---
+
+## ?? Referencias
+
+- `/VERIFACTU`: Documentación oficial AEAT (requiere revisión para cada fase)
+- `.github/copilot-instructions.md`: Reglas de arquitectura y estilo
+- `docs/HASH_CALCULATION.md`: Referencia del hash determinista
+- Commits recientes: Inspeccionar para cambios en patrones
