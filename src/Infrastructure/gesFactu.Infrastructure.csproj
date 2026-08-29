@@ -17,9 +17,4 @@
     <ProjectReference Include="..\Core\gesFactu.Domain\gesFactu.Domain.csproj" />
   </ItemGroup>
 
-  <ItemGroup>
-    <Folder Include="Persistence/Configuration" />
-    <Folder Include="Persistence/Repositories" />
-  </ItemGroup>
-
 </Project>

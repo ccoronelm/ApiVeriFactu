@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using gesFactu.Application.Common.Abstractions;
 using gesFactu.Domain.Entities;
+using gesFactu.Infrastructure.Persistence.Configuration;
 
 namespace gesFactu.Infrastructure.Persistence;
 
@@ -26,41 +27,8 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
     {
         base.OnModelCreating(modelBuilder);
 
-        // Configuraciones de entidades
-        // modelBuilder.ApplyConfigurationsFromAssembly(typeof(ApplicationDbContext).Assembly);
-
-        // Configuración temporal de BillingRecord
-        modelBuilder.Entity<BillingRecord>(entity =>
-        {
-            entity.HasKey(e => e.Id);
-
-            entity.Property(e => e.Id)
-                .ValueGeneratedOnAdd();
-
-            entity.Property(e => e.IssuerName)
-                .IsRequired()
-                .HasMaxLength(120);
-
-            entity.Property(e => e.Description)
-                .IsRequired()
-                .HasMaxLength(500);
-
-            entity.Property(e => e.Status)
-                .IsRequired()
-                .HasMaxLength(50);
-
-            entity.Property(e => e.ComputedHash)
-                .HasMaxLength(64);
-
-            entity.Property(e => e.PreviousRecordHash)
-                .HasMaxLength(64);
-
-            entity.Property(e => e.AeatSubmissionId)
-                .HasMaxLength(50);
-
-            // TODO: Mapear Value Objects (InvoiceIdentifier, Money)
-            // Esto requiere EF Core value conversions
-        });
+        // Aplicar configuraciones de entidades desde este assembly
+        modelBuilder.ApplyConfiguration(new BillingRecordConfiguration());
     }
 }
 

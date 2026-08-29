@@ -15,15 +15,18 @@ public sealed class CreateBillingRecordCommandHandler
     : IRequestHandler<CreateBillingRecordCommand, Result<CreateBillingRecordResponse>>
 {
     private readonly IApplicationDbContext _dbContext;
+    private readonly IBillingRecordRepository _repository;
     private readonly IHashCalculator _hashCalculator;
     private readonly ILogger<CreateBillingRecordCommandHandler> _logger;
 
     public CreateBillingRecordCommandHandler(
         IApplicationDbContext dbContext,
+        IBillingRecordRepository repository,
         IHashCalculator hashCalculator,
         ILogger<CreateBillingRecordCommandHandler> logger)
     {
         _dbContext = dbContext;
+        _repository = repository;
         _hashCalculator = hashCalculator;
         _logger = logger;
     }
@@ -146,9 +149,8 @@ public sealed class CreateBillingRecordCommandHandler
                 "Hash calculado para registro: {Hash}",
                 calculatedHash);
 
-            // Persistir
-            // TODO: Agregar DbSet<BillingRecord> a ApplicationDbContext
-            // await _dbContext.BillingRecords.AddAsync(billingRecord, cancellationToken);
+            // Persistir mediante repositorio
+            await _repository.AddAsync(billingRecord, cancellationToken);
             await _dbContext.SaveChangesAsync(cancellationToken);
 
             _logger.LogInformation(

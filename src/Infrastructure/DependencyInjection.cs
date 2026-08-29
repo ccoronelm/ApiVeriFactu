@@ -3,6 +3,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using gesFactu.Application.Common.Abstractions;
 using gesFactu.Infrastructure.Persistence;
+using gesFactu.Infrastructure.Persistence.Repositories;
 using gesFactu.Infrastructure.VeriFactu;
 
 namespace gesFactu.Infrastructure;
@@ -25,6 +26,9 @@ public static class DependencyInjection
         // Puerto de persistencia
         services.AddScoped<IApplicationDbContext>(provider =>
             provider.GetRequiredService<ApplicationDbContext>());
+
+        // Repositorios
+        services.AddScoped<IBillingRecordRepository, BillingRecordRepository>();
 
         // Hash calculation (SHA256 para VERI*FACTU)
         services.AddSingleton<IHashCalculator, Sha256HashCalculator>();

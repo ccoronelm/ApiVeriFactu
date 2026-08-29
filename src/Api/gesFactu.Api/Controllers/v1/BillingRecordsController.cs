@@ -2,6 +2,7 @@ using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using gesFactu.Application.Common;
 using gesFactu.Application.RegistrosFacturacion.Commands.CrearRegistro;
+using gesFactu.Application.RegistrosFacturacion.Queries.ObtenerRegistro;
 
 namespace gesFactu.Api.Controllers.v1;
 
@@ -118,15 +119,45 @@ public class BillingRecordsController : ControllerBase
 
     /// <summary>
     /// Obtiene un registro de facturación por ID.
-    /// (Placeholder - se implementará después)
     /// </summary>
     [HttpGet("{id}")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> GetBillingRecord(int id)
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> GetBillingRecord(int id, CancellationToken cancellationToken)
     {
-        // TODO: Implementar consulta de registro
-        return NotFound();
+        _logger.LogInformation("Obteniendo registro de facturación: {Id}", id);
+
+        var query = new GetBillingRecordQuery(id);
+        var result = await _mediator.Send(query, cancellationToken);
+
+        return result switch
+        {
+            Result<BillingRecordDto>.SuccessWithValue success =>
+                Ok(success.Value),
+
+            Result<BillingRecordDto>.NotFoundError notFoundError =>
+                NotFound(new ProblemDetails
+                {
+                    Type = "https://tools.ietf.org/html/rfc9110#section-15.5.4",
+                    Title = "Not Found",
+                    Status = StatusCodes.Status404NotFound,
+                    Detail = $"{notFoundError.ResourceName} con identificador {notFoundError.Identifier} no encontrado",
+                    Instance = HttpContext.Request.Path
+                }),
+
+            Result<BillingRecordDto>.UnexpectedError unexpectedError =>
+                StatusCode(StatusCodes.Status500InternalServerError, new ProblemDetails
+                {
+                    Type = "https://tools.ietf.org/html/rfc9110#section-15.6.1",
+                    Title = "Internal Server Error",
+                    Status = StatusCodes.Status500InternalServerError,
+                    Detail = unexpectedError.Message,
+                    Instance = HttpContext.Request.Path
+                }),
+
+            _ => StatusCode(StatusCodes.Status500InternalServerError)
+        };
     }
 }
 
