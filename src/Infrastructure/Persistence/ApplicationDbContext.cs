@@ -20,6 +20,7 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
     public DbSet<BillingRecord> BillingRecords { get; set; } = null!;
     public DbSet<OutboxMessage> OutboxMessages { get; set; } = null!;
     public DbSet<DeadLetterMessage> DeadLetterMessages { get; set; } = null!;
+    public DbSet<SubmissionAttempt> SubmissionAttempts { get; set; } = null!;
 
     public void AddOutboxMessage(object message)
     {
@@ -46,5 +47,6 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
         modelBuilder.ApplyConfiguration(new BillingRecordConfiguration());
         modelBuilder.ApplyConfiguration(new OutboxMessageConfiguration());
         modelBuilder.ApplyConfiguration(new DeadLetterMessageConfiguration());
+        modelBuilder.ApplyConfiguration(new SubmissionAttemptConfiguration());
     }
 }

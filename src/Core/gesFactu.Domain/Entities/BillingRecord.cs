@@ -173,4 +173,10 @@ public class BillingRecord : BaseDomainModel
 
         ComputedHash = hash;
     }
+
+    // Navegación
+    /// <summary>
+    /// Historial de intentos de envío a AEAT (auditoría).
+    /// </summary>
+    public virtual ICollection<SubmissionAttempt> SubmissionAttempts { get; set; } = new HashSet<SubmissionAttempt>();
 }
