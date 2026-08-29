@@ -38,16 +38,16 @@ public sealed class GetBillingRecordQueryHandler
                 return new Result<BillingRecordDto>.NotFoundError("BillingRecord", query.BillingRecordId.ToString());
             }
 
-            // Mapear a DTO
+            // Mapear a DTO reconstruyendo los identificadores desde las propiedades desnormalizadas
+            var invoiceId = $"{record.IssuerNif}/{record.InvoiceSeries}-{record.InvoiceNumber}";
+
             var dto = new BillingRecordDto(
                 record.Id,
-                // TODO: Construir identificador desde InvoiceIdentifier
-                $"{record.InvoiceIdentifier}",
+                invoiceId,
                 record.IssuerName,
                 record.Description,
-                // TODO: Extraer Amount desde Money value object
-                0m,
-                0m,
+                record.TotalAmount,
+                record.TotalTaxAmount,
                 record.Status,
                 record.ComputedHash,
                 record.PreviousRecordHash,

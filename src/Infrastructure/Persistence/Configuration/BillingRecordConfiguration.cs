@@ -5,17 +5,20 @@ using gesFactu.Domain.Entities;
 namespace gesFactu.Infrastructure.Persistence.Configuration;
 
 /// <summary>
-/// Configuración EF Core para la entidad BillingRecord.
-/// Mapea los Value Objects a columnas de base de datos.
+/// Configuración EF Core para BillingRecord.
+/// 
+/// Estrategia: Por simplicidad en el MVP, permitimos que EF Core cree la estructura automáticamente
+/// para las propiedades escalares, e ignoramos los value objects complejos (InvoiceIdentifier, Money)
+/// que requieren conversiones personalizadas sofisticadas.
+/// 
+/// Estos value objects se reconstruirán en el repositorio durante la lectura.
 /// </summary>
 public sealed class BillingRecordConfiguration : IEntityTypeConfiguration<BillingRecord>
 {
     public void Configure(EntityTypeBuilder<BillingRecord> builder)
     {
         builder.HasKey(e => e.Id);
-
-        builder.Property(e => e.Id)
-            .ValueGeneratedOnAdd();
+        builder.Property(e => e.Id).ValueGeneratedOnAdd();
 
         // Auditoría
         builder.Property(e => e.CreateDate)
@@ -26,41 +29,7 @@ public sealed class BillingRecordConfiguration : IEntityTypeConfiguration<Billin
             .HasMaxLength(256);
 
         builder.Property(e => e.LastModifiedDate);
-
-        builder.Property(e => e.LastModifiedBy)
-            .HasMaxLength(256);
-
-        // InvoiceIdentifier (Value Object compuesto)
-        // Descomponemos en columnas individuales
-        builder.Property("InvoiceIdentifier.IssuerNif.Value")
-            .HasColumnName("IssuerNif")
-            .IsRequired()
-            .HasMaxLength(9);
-
-        builder.Property("InvoiceIdentifier.Series.Value")
-            .HasColumnName("InvoiceSeries")
-            .IsRequired()
-            .HasMaxLength(60);
-
-        builder.Property("InvoiceIdentifier.Number.Value")
-            .HasColumnName("InvoiceNumber")
-            .IsRequired()
-            .HasMaxLength(60);
-
-        builder.Property("InvoiceIdentifier.IssueDate")
-            .HasColumnName("IssueDate")
-            .IsRequired();
-
-        // Money Value Objects
-        builder.Property("TotalAmount.Amount")
-            .HasColumnName("TotalAmount")
-            .IsRequired()
-            .HasPrecision(18, 2); // Money: 18 dígitos, 2 decimales
-
-        builder.Property("TotalTaxAmount.Amount")
-            .HasColumnName("TotalTaxAmount")
-            .IsRequired()
-            .HasPrecision(18, 2);
+        builder.Property(e => e.LastModifiedBy).HasMaxLength(256);
 
         // Datos básicos
         builder.Property(e => e.IssuerName)
@@ -76,6 +45,7 @@ public sealed class BillingRecordConfiguration : IEntityTypeConfiguration<Billin
             .HasMaxLength(64);
 
         builder.Property(e => e.ComputedHash)
+            .IsRequired()
             .HasMaxLength(64);
 
         // Envío a AEAT
@@ -90,23 +60,36 @@ public sealed class BillingRecordConfiguration : IEntityTypeConfiguration<Billin
             .HasMaxLength(50)
             .HasDefaultValue("Pendiente");
 
-        // Índices para queries frecuentes
-        builder.HasIndex("IssuerNif")
-            .HasDatabaseName("IX_BillingRecords_IssuerNif");
+        // Ignoramos InvoiceIdentifier y Money para esta migración inicial.
+        // EF Core no puede mapearlos automáticamente sin conversiones personalizadas complejas.
+        builder.Ignore(e => e.InvoiceIdentifier);
+        builder.Ignore(e => e.TotalAmount);
+        builder.Ignore(e => e.TotalTaxAmount);
 
-        builder.HasIndex("IssuerNif", "InvoiceSeries")
-            .HasDatabaseName("IX_BillingRecords_IssuerNif_Series");
+        // Mapeamos las propiedades desnormalizadas de InvoiceIdentifier
+        builder.Property(e => e.IssuerNif)
+            .IsRequired()
+            .HasMaxLength(9);
 
-        builder.HasIndex("AeatSubmissionId")
-            .HasDatabaseName("IX_BillingRecords_AeatSubmissionId")
-            .IsUnique(true);
+        builder.Property(e => e.InvoiceSeries)
+            .IsRequired()
+            .HasMaxLength(60);
 
-        builder.HasIndex("ComputedHash")
-            .HasDatabaseName("IX_BillingRecords_Hash")
-            .IsUnique(true);
+        builder.Property(e => e.InvoiceNumber)
+            .IsRequired()
+            .HasMaxLength(60);
 
-        builder.HasIndex("Status")
-            .HasDatabaseName("IX_BillingRecords_Status");
+        builder.Property(e => e.IssueDate)
+            .IsRequired();
+
+        // Mapeamos los importes desnormalizados
+        builder.Property(e => e.TotalAmount)
+            .HasPrecision(18, 2)
+            .IsRequired();
+
+        builder.Property(e => e.TotalTaxAmount)
+            .HasPrecision(18, 2)
+            .IsRequired();
 
         builder.ToTable("BillingRecords");
     }

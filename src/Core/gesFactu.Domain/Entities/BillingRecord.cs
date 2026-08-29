@@ -8,13 +8,37 @@ namespace gesFactu.Domain.Entities;
 /// Es el agregado raíz que encapsula el estado de una factura registrada.
 /// 
 /// Ref: /VERIFACTU/SuministroInformacion.xsd.xml - RegistroFacturacionAltaType
+/// 
+/// Nota de persistencia: Para simplificar el mapeo EF Core en MVP,
+/// se desnormalizan los Value Objects en propiedades escalares.
 /// </summary>
 public class BillingRecord : BaseDomainModel
 {
     /// <summary>
-    /// Identificador único de la factura.
+    /// Identificador único de la factura (Value Object).
+    /// Internamente compuesto por NIF del emisor, serie, número e fecha de emisión.
     /// </summary>
     public required InvoiceIdentifier InvoiceIdentifier { get; set; }
+
+    /// <summary>
+    /// NIF/CIF del emisor (desnormalizado para EF Core).
+    /// </summary>
+    public string IssuerNif { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Serie de la factura (desnormalizado para EF Core).
+    /// </summary>
+    public string InvoiceSeries { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Número de la factura (desnormalizado para EF Core).
+    /// </summary>
+    public string InvoiceNumber { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Fecha de emisión (desnormalizado para EF Core).
+    /// </summary>
+    public DateOnly IssueDate { get; set; }
 
     /// <summary>
     /// Nombre o razón social del emisor de la factura.
@@ -29,12 +53,12 @@ public class BillingRecord : BaseDomainModel
     /// <summary>
     /// Importe total de la factura (base + impuestos).
     /// </summary>
-    public required Money TotalAmount { get; set; }
+    public decimal TotalAmount { get; set; }
 
     /// <summary>
     /// Cuota total de impuesto.
     /// </summary>
-    public required Money TotalTaxAmount { get; set; }
+    public decimal TotalTaxAmount { get; set; }
 
     /// <summary>
     /// Hash/huella del registro anterior en la cadena (para encadenamiento).
@@ -93,10 +117,14 @@ public class BillingRecord : BaseDomainModel
         return new BillingRecord
         {
             InvoiceIdentifier = invoiceIdentifier,
+            IssuerNif = invoiceIdentifier.IssuerNif.Value,
+            InvoiceSeries = invoiceIdentifier.Series.Value,
+            InvoiceNumber = invoiceIdentifier.Number.Value,
+            IssueDate = invoiceIdentifier.IssueDate,
             IssuerName = issuerName,
             Description = description,
-            TotalAmount = totalAmount,
-            TotalTaxAmount = totalTaxAmount,
+            TotalAmount = totalAmount.Amount,
+            TotalTaxAmount = totalTaxAmount.Amount,
             PreviousRecordHash = previousRecordHash,
             Status = "Pendiente",
             IsSubmitted = false
