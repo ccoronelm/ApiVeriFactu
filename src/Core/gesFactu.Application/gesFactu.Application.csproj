@@ -6,4 +6,21 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <PackageReference Include="MediatR" Version="12.2.0" />
+    <PackageReference Include="FluentValidation" Version="11.9.2" />
+    <PackageReference Include="FluentValidation.DependencyInjectionExtensions" Version="11.9.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\gesFactu.Domain\gesFactu.Domain.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="RegistrosFacturacion/Commands" />
+    <Folder Include="RegistrosFacturacion/Queries" />
+    <Folder Include="RegistrosFacturacion/Validators" />
+    <Folder Include="Shared/Abstractions" />
+  </ItemGroup>
+
 </Project>
