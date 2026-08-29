@@ -15,12 +15,10 @@ public interface IOutboxStore
     /// Obtiene un lote de mensajes pendientes de procesar.
     /// </summary>
     /// <param name="batchSize">Número máximo de mensajes a retornar.</param>
-    /// <param name="maxAttempts">Máximo número de intentos permitidos antes de descartar.</param>
     /// <param name="cancellationToken">Token de cancelación.</param>
     /// <returns>Lista de mensajes sin procesar.</returns>
     Task<IReadOnlyList<OutboxMessage>> GetPendingMessagesAsync(
         int batchSize = 50,
-        int maxAttempts = 5,
         CancellationToken cancellationToken = default);
 
     /// <summary>

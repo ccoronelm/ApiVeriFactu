@@ -36,6 +36,9 @@ public static class DependencyInjection
         // Outbox store para procesamiento confiable
         services.AddScoped<IOutboxStore, OutboxStore>();
 
+        // Dead letter store para mensajes irrecuperables
+        services.AddScoped<IDeadLetterStore, DeadLetterStore>();
+
         // Hash calculation (SHA256 para VERI*FACTU)
         services.AddSingleton<IHashCalculator, Sha256HashCalculator>();
 

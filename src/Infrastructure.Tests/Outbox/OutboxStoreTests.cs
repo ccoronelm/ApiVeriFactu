@@ -75,7 +75,7 @@ public class OutboxStoreTests
         await context.SaveChangesAsync();
 
         // Act
-        var pending = await store.GetPendingMessagesAsync(10, 5);
+        var pending = await store.GetPendingMessagesAsync(10, CancellationToken.None);
 
         // Assert
         Assert.Equal(2, pending.Count);
@@ -238,12 +238,12 @@ public class OutboxStoreTests
         await context.SaveChangesAsync();
 
         // Act
-        var pending = await store.GetPendingMessagesAsync(10, 5);
+        var pending = await store.GetPendingMessagesAsync(10, CancellationToken.None);
 
         // Assert
-        Assert.Single(pending);
+        Assert.Equal(2, pending.Count);
         Assert.Contains(messageWithinLimit, pending);
-        Assert.DoesNotContain(messageExceedsLimit, pending);
+        Assert.Contains(messageExceedsLimit, pending);  // Store ahora retorna TODOS los no-procesados, sin filtrar por intentos
     }
 
     [Fact]
@@ -329,3 +329,6 @@ public class OutboxStoreTests
         Assert.False(updated.IsProcessed);
     }
 }
+
+
+

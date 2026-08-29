@@ -19,6 +19,7 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
 
     public DbSet<BillingRecord> BillingRecords { get; set; } = null!;
     public DbSet<OutboxMessage> OutboxMessages { get; set; } = null!;
+    public DbSet<DeadLetterMessage> DeadLetterMessages { get; set; } = null!;
 
     public void AddOutboxMessage(object message)
     {
@@ -44,5 +45,6 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
         // Aplicar configuraciones de entidades desde este assembly
         modelBuilder.ApplyConfiguration(new BillingRecordConfiguration());
         modelBuilder.ApplyConfiguration(new OutboxMessageConfiguration());
+        modelBuilder.ApplyConfiguration(new DeadLetterMessageConfiguration());
     }
 }

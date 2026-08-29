@@ -18,11 +18,10 @@ public class OutboxStore : IOutboxStore
 
     public async Task<IReadOnlyList<OutboxMessage>> GetPendingMessagesAsync(
         int batchSize = 50,
-        int maxAttempts = 5,
         CancellationToken cancellationToken = default)
     {
         var messages = await _context.OutboxMessages
-            .Where(m => !m.IsProcessed && m.ProcessingAttempts < maxAttempts)
+            .Where(m => !m.IsProcessed)
             .OrderBy(m => m.CreatedAt)
             .Take(batchSize)
             .ToListAsync(cancellationToken);
