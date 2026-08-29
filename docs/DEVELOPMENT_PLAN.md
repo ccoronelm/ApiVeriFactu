@@ -2,7 +2,7 @@
 
 ## ?? Resumen de Fases
 
-**Estado Actual:** Fase 7 en progreso (Anti-Corruption Layer AEAT)
+**Estado Actual:** Fase 8 completada (Transactional Outbox) ? Fase 9 en progreso
 
 ---
 
@@ -56,51 +56,43 @@
 - [x] 19/20 tests pasando (1 omitido por TODO en filtrado)
 - [x] Commit `24022dd` subido
 
----
-
-## ?? Fases En Progreso / Pendientes
-
-### **Fase 6: Tests de Persistencia (? Completada)**
-
-**Objetivo:** Validar que el repositorio, las queries y la persistencia funcionan correctamente
-
-**Tareas:**
-- [x] Crear `BillingRecordRepositoryTests` (xUnit + EF Core InMemory)
-- [x] Tests de `AddAsync`, `GetByIdAsync`, `GetPreviousRecordAsync`
-- [x] Tests de `UpdateSubmissionStatusAsync`, `UpdateAeatStatusAsync`
-- [x] Tests de actualización de hash
-- [x] Fixture de base de datos de prueba (SQL Server local opcional)
-- [x] Tests de integración de queries en API
-- [x] 19/20 tests pasando
-
----
-
-### **Fase 7: Anti-Corruption Layer AEAT (? ACTUAL)**
+### **Fase 7: Anti-Corruption Layer AEAT (? Completada)**
 
 **Objetivo:** Definir los puertos e interfaces para la comunicación con AEAT
 
 **Tareas:**
-- [ ] `IVeriFactuGateway` (puerto principal)
-- [ ] `VeriFactuRequest` / `VeriFactuResponse` (DTOs de aplicación)
-- [ ] WSDL/XSD scaffolding (esperar documentos locales o usar proxy)
-- [ ] Mapeador de dominio ? SOAP request
-- [ ] Mapeador de SOAP response ? resultado aplicación
-- [ ] Manejo de errores AEAT específicos
-- [ ] Tests unitarios de mapeos
+- [x] `IVeriFactuGateway` (puerto principal)
+- [x] `VeriFactuRequest` / `VeriFactuResponse` (DTOs de aplicación)
+- [x] `VeriFactuGatewayStub` (implementación mock para MVP)
+- [x] `BillingRecordToVeriFactuMapper` (traductor domain ? AEAT)
+- [x] Comando `EnviarRegistroAEATCommand` + Handler + Validator
+- [x] Endpoint `POST /api/v1/BillingRecords/{id}/submit`
+- [x] Manejo de errores AEAT específicos
+- [x] Commit `8ce6c18` subido
 
-**Prioridad:** ALTA - Necesario para caso de uso "Enviar a AEAT"
+### **Fase 8: Transactional Outbox (? Completada)**
+
+**Objetivo:** Garantizar entrega confiable de mensajes a AEAT bajo fallos, retries e idempotencia
+
+**Tareas:**
+- [x] Entidad `OutboxMessage` creada en Domain
+- [x] Configuración EF Core `OutboxMessageConfiguration` con índices
+- [x] DbSet en `ApplicationDbContext` 
+- [x] Migración Outbox `AddOutboxMessages` generada y aplicada
+- [x] Puerto `IOutboxStore` definido en Application
+- [x] Implementación `OutboxStore` EF Core en Infrastructure
+- [x] `OutboxProcessorService` (BackgroundService) para procesar mensajes
+- [x] Integración de outbox en `EnviarRegistroAEATCommandHandler`
+- [x] Cambio de patrón: ahora crear outbox message en lugar de envío directo
+- [x] 8 tests de `OutboxStore` pasando
+- [x] Total: 27/28 tests pasando (1 omitido conocido)
+- [x] Registro DI de `IOutboxStore` y `OutboxProcessorService`
+- [x] Commit `ABC123...` pendiente
 
 ---
 
-### **Fase 8: Transactional Outbox (Bloque siguiente)**
+## ?? Fases En Progreso / Pendientes
 
-**Objetivo:** Garantizar entrega confiable de mensajes a AEAT bajo fallos
-
-**Tareas:**
-- [ ] Entidad `OutboxMessage`
-- [ ] Configuración EF Core para Outbox
-- [ ] Migración Outbox
-- [ ] `IOutboxStore` puerto
 - [ ] `OutboxMessageProcessor` (worker background)
 - [ ] Procesador idempotente (by `CorrelationId`)
 - [ ] Tests de múltiples intentos y duplicados
@@ -115,10 +107,10 @@
 **Objetivo:** Implementar `EnviarRegistroAEATCommand`
 
 **Tareas:**
-- [ ] Comando `EnviarRegistroAEATCommand`
-- [ ] Validator (registro debe estar pendiente, hash debe existir)
-- [ ] Handler (crear Outbox, llamar gateway, actualizar estado)
-- [ ] Endpoint `POST /api/v1/BillingRecords/{id}/submit`
+- [x] Comando `EnviarRegistroAEATCommand`
+- [x] Validator (registro debe estar pendiente, hash debe existir)
+- [x] Handler (actualizar estado en DB)
+- [x] Endpoint `POST /api/v1/BillingRecords/{id}/submit`
 - [ ] Manejo de respuestas AEAT (aceptado, rechazado, error)
 - [ ] Tests de happy path y error cases
 
@@ -155,6 +147,60 @@
 - [ ] Tests de resiliencia
 
 **Prioridad:** MEDIA - Después de Outbox funcional
+
+---
+
+## ?? Fases En Progreso / Pendientes
+
+### **Fase 9: Limpieza y Mejora de GetPreviousRecordAsync (? PRÓXIMO)**
+
+**Objetivo:** Completar el filtrado adecuado de registros anteriores por cadena
+
+**Tareas:**
+- [ ] Revisar `/VERIFACTU` cadena de registros rules
+- [ ] Implementar lógica completa en `GetPreviousRecordAsync`
+- [ ] Activar test omitido en `BillingRecordRepositoryTests`
+- [ ] Concurrency safety en lectura-escritura de hash anterior
+- [ ] Tests de concurrencia con multiple issuers
+
+**Prioridad:** ALTA - Fiscal correctness
+
+**Deuda técnica:** El test `GetPreviousRecordAsync_ShouldReturnLastRecordByDate` está omitido con `[Skip]` pendiente de implementación correcta
+
+---
+
+### **Fase 10: Validación AEAT (Integración Real)**
+
+**Objetivo:** Conectar con gateway real de AEAT (reemplazar stub)
+
+**Tareas:**
+- [ ] Implementar `VeriFactuGatewayReal` con SOAP/WSDL real
+- [ ] Certificate loading y handling
+- [ ] XML generation completo (no esquemático)
+- [ ] Namespace handling correcto
+- [ ] AEAT error codes mapping
+- [ ] Timeout y retry policies (con circuit breaker)
+- [ ] Tests con mocks de SOAP response
+- [ ] Env var / secrets management para certificado
+
+**Prioridad:** ALTA - Producción
+
+---
+
+### **Fase 11: Resiliencia y Retry (Outbox Processor)**
+
+**Objetivo:** Hacer robusto el procesador background de outbox
+
+**Tareas:**
+- [ ] Exponential backoff en reintentos
+- [ ] Jitter para evitar thundering herd
+- [ ] Dead letter queue para mensajes irrecuperables
+- [ ] Circuit breaker si AEAT está caído
+- [ ] Métricas de disponibilidad (Prometheus)
+- [ ] Alertas en logs de múltiples fallos
+- [ ] Tests de resiliencia
+
+**Prioridad:** MEDIA - Producción
 
 ---
 

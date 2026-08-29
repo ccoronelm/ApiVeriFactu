@@ -1,20 +1,27 @@
 using MediatR;
 using Microsoft.Extensions.Logging;
+using System.Text.Json;
 using gesFactu.Application.Common;
 using gesFactu.Application.Common.Abstractions;
+using gesFactu.Domain.Entities;
 
 namespace gesFactu.Application.RegistrosFacturacion.Commands.EnviarAEAT;
 
 /// <summary>
 /// Handler para enviar un registro de facturación a AEAT.
 /// 
-/// Orquesta:
+/// Implementa Transactional Outbox:
 /// 1. Obtención del registro desde repositorio
 /// 2. Validación de precondiciones (debe estar pendiente, con hash)
 /// 3. Mapeo a solicitud AEAT
-/// 4. Llamada a gateway AEAT
-/// 5. Actualización de estado del registro
-/// 6. Persistencia
+/// 4. Creación de mensaje en outbox (atómicamente con actualización de estado)
+/// 5. El procesador background maneja el envío a AEAT y reintentos
+/// 
+/// Ventajas:
+/// - La operación es idempotente (no hay duplicados por reintentos)
+/// - La entrega a AEAT es confiable (se reintentar si falla)
+/// - Sin bloqueos mientras se espera respuesta de AEAT
+/// - Separación clara entre cambio de estado y comunicación externa
 /// 
 /// Ref: /VERIFACTU - Reglamentación de envío y estados
 /// </summary>
@@ -22,18 +29,18 @@ public sealed class EnviarRegistroAEATCommandHandler
     : IRequestHandler<EnviarRegistroAEATCommand, Result<EnviarRegistroAEATResponse>>
 {
     private readonly IBillingRecordRepository _repository;
-    private readonly IVeriFactuGateway _veriFactuGateway;
+    private readonly IOutboxStore _outboxStore;
     private readonly IApplicationDbContext _dbContext;
     private readonly ILogger<EnviarRegistroAEATCommandHandler> _logger;
 
     public EnviarRegistroAEATCommandHandler(
         IBillingRecordRepository repository,
-        IVeriFactuGateway veriFactuGateway,
+        IOutboxStore outboxStore,
         IApplicationDbContext dbContext,
         ILogger<EnviarRegistroAEATCommandHandler> logger)
     {
         _repository = repository;
-        _veriFactuGateway = veriFactuGateway;
+        _outboxStore = outboxStore;
         _dbContext = dbContext;
         _logger = logger;
     }
@@ -85,60 +92,54 @@ public sealed class EnviarRegistroAEATCommandHandler
             // 3. Mapear a solicitud AEAT
             var request = BillingRecordToVeriFactuMapper.MapToSubmissionRequest(record, "");
 
-            // 4. Enviar a AEAT
-            _logger.LogInformation(
-                "Enviando solicitud a AEAT para registro {BillingRecordId}",
-                command.BillingRecordId);
+            // Crear correlationId único para este intento
+            var correlationId = Guid.NewGuid();
 
-            var aeatResult = await _veriFactuGateway.SubmitBillingRecordAsync(request, cancellationToken);
+            // 4. Marcar registro como en envío y crear mensaje de outbox (atómicamente)
+            record.MarkAsSubmitted(correlationId.ToString());
 
-            // 5. Actualizar estado del registro según respuesta AEAT
-            record.MarkAsSubmitted(aeatResult.SubmissionId);
-
-            if (aeatResult.IsAccepted)
+            var outboxMessage = new OutboxMessage
             {
-                record.MarkAsAccepted();
-                _logger.LogInformation(
-                    "Registro aceptado por AEAT: {BillingRecordId}, SubmissionId: {SubmissionId}",
-                    command.BillingRecordId,
-                    aeatResult.SubmissionId);
-            }
-            else
-            {
-                record.MarkAsRejected(aeatResult.StatusDescription ?? "Error desconocido de AEAT");
-                _logger.LogWarning(
-                    "Registro rechazado por AEAT: {BillingRecordId}, Motivo: {StatusDescription}",
-                    command.BillingRecordId,
-                    aeatResult.StatusDescription);
-            }
+                CorrelationId = correlationId,
+                AggregateId = record.Id,
+                AggregateType = "BillingRecord",
+                EventType = "BillingRecordSubmittedToAEAT",
+                Payload = JsonSerializer.Serialize(request),
+                CreatedAt = DateTime.UtcNow,
+                IsProcessed = false,
+                ProcessingAttempts = 0
+            };
 
-            // 6. Persistir cambios
+            _dbContext.AddOutboxMessage(outboxMessage);
             await _dbContext.SaveChangesAsync(cancellationToken);
 
             _logger.LogInformation(
-                "Cambios persistidos para registro {BillingRecordId}",
-                command.BillingRecordId);
+                "Mensaje de outbox creado para registro {BillingRecordId}, CorrelationId: {CorrelationId}",
+                command.BillingRecordId,
+                correlationId);
 
+            // Retornar respuesta inmediata al cliente
+            // El procesamiento real ocurre en background via OutboxProcessorService
             return new Result<EnviarRegistroAEATResponse>.SuccessWithValue(
                 new EnviarRegistroAEATResponse
                 {
                     BillingRecordId = command.BillingRecordId,
-                    AeatSubmissionId = aeatResult.SubmissionId,
-                    IsAccepted = aeatResult.IsAccepted,
-                    Status = aeatResult.StatusCode,
-                    StatusDescription = aeatResult.StatusDescription,
-                    Details = aeatResult.AdditionalDetails
+                    AeatSubmissionId = correlationId.ToString(),
+                    IsAccepted = false, // No sabemos aún, será actualizado por el processor
+                    Status = "PENDING",
+                    StatusDescription = "Enviando a AEAT (procesamiento en background)",
+                    Details = "El registro se procesará asincronamente. Use el CorrelationId para rastrear el estado."
                 });
         }
         catch (Exception ex)
         {
             _logger.LogError(
                 ex,
-                "Error inesperado al enviar registro {BillingRecordId} a AEAT",
+                "Error inesperado al preparar envío de registro {BillingRecordId}",
                 command.BillingRecordId);
 
             return new Result<EnviarRegistroAEATResponse>.ExternalServiceError(
-                "Error de comunicación con AEAT",
+                "Error al preparar envío a AEAT",
                 ex.Message);
         }
     }

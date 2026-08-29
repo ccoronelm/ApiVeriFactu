@@ -7,6 +7,7 @@ using gesFactu.Infrastructure.Persistence;
 using gesFactu.Infrastructure.Persistence.Repositories;
 using gesFactu.Infrastructure.VeriFactu;
 using gesFactu.Infrastructure.Integrations.VeriFactu;
+using gesFactu.Infrastructure.Outbox;
 
 namespace gesFactu.Infrastructure;
 
@@ -32,14 +33,19 @@ public static class DependencyInjection
         // Repositorios
         services.AddScoped<IBillingRecordRepository, BillingRecordRepository>();
 
+        // Outbox store para procesamiento confiable
+        services.AddScoped<IOutboxStore, OutboxStore>();
+
         // Hash calculation (SHA256 para VERI*FACTU)
         services.AddSingleton<IHashCalculator, Sha256HashCalculator>();
 
         // Puerto de AEAT (stub para MVP - en producción usar VeriFactuGateway real)
         services.AddScoped<IVeriFactuGateway, VeriFactuGatewayStub>();
 
+        // Servicio background para procesar outbox
+        services.AddHostedService<OutboxProcessorService>();
+
         return services;
     }
 }
-
 
