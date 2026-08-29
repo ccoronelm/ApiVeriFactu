@@ -113,14 +113,15 @@ public class VeriFactuGatewayStubAdvanced : IVeriFactuGateway
         lock (_lock)
         {
             if (!_submittedRecords.TryGetValue(request.SubmissionId, out _))
-            {
-                return new VeriFactuCancellationResult
                 {
-                    IsAccepted = false,
-                    StatusCode = "404",
-                    StatusDescription = "El registro no fue encontrado para cancelar"
-                };
-            }
+                    return new VeriFactuCancellationResult
+                    {
+                        IsAccepted = false,
+                        StatusCode = "404",
+                        StatusDescription = "El registro no fue encontrado para cancelar",
+                        ResponseCode = AeatResponseCode.ValidationError
+                    };
+                }
 
             if (_cancelledRecords.ContainsKey(request.SubmissionId))
             {
@@ -128,7 +129,8 @@ public class VeriFactuGatewayStubAdvanced : IVeriFactuGateway
                 {
                     IsAccepted = false,
                     StatusCode = "409",
-                    StatusDescription = "El registro ya fue cancelado previamente"
+                    StatusDescription = "El registro ya fue cancelado previamente",
+                    ResponseCode = AeatResponseCode.DuplicateError
                 };
             }
 
@@ -142,7 +144,8 @@ public class VeriFactuGatewayStubAdvanced : IVeriFactuGateway
                 IsAccepted = true,
                 StatusCode = "1000",
                 StatusDescription = "Cancelación aceptada correctamente",
-                CancellationId = cancellationId
+                CancellationId = cancellationId,
+                ResponseCode = AeatResponseCode.Success
             };
         }
     }

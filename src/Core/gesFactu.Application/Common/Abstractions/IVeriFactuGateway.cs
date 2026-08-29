@@ -159,6 +159,11 @@ public record VeriFactuCancellationRequest
     /// Motivo de la cancelación (requerido por AEAT).
     /// </summary>
     public required string CancellationReason { get; init; }
+
+    /// <summary>
+    /// Contenido XML de la cancelación, ya firmado (si aplica).
+    /// </summary>
+    public string? CancellationXmlContent { get; init; }
 }
 
 /// <summary>
@@ -185,4 +190,19 @@ public record VeriFactuCancellationResult
     /// ID de cancelación asignado por AEAT (si fue exitosa).
     /// </summary>
     public string? CancellationId { get; init; }
+
+    /// <summary>
+    /// Código de respuesta clasificado (para decisiones de retry).
+    /// </summary>
+    public required AeatResponseCode ResponseCode { get; init; }
+
+    /// <summary>
+    /// Detalles adicionales de validación o error.
+    /// </summary>
+    public string? AdditionalDetails { get; init; }
+
+    /// <summary>
+    /// Timestamp de AEAT asociado a la cancelación.
+    /// </summary>
+    public DateTime? ServerTimestamp { get; init; }
 }

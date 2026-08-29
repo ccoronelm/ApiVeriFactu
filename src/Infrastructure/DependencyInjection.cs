@@ -50,8 +50,8 @@ public static class DependencyInjection
         // QR Code generator
         services.AddScoped<IQRCodeGenerator, QRCodeGenerator>();
 
-        // Puerto de AEAT (stub para MVP - en producción usar VeriFactuGateway real)
-        services.AddScoped<IVeriFactuGateway, VeriFactuGatewayStub>();
+        // Cliente AEAT: configurable (stub en desarrollo, SOAP real en producción)
+        services.AddVeriFactuClient(configuration);
 
         // Servicio background para procesar outbox
         services.AddHostedService<OutboxProcessorService>();

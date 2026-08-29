@@ -101,8 +101,10 @@ public sealed class VeriFactuGatewayStub : IVeriFactuGateway
         {
             IsAccepted = true,
             StatusCode = "1000",
-            StatusDescription = "Cancelación aceptada por AEAT (STUB)",
-            CancellationId = cancellationId
+            StatusDescription = "Cancelación procesada correctamente (STUB)",
+            CancellationId = cancellationId,
+            ResponseCode = AeatResponseCode.Success,
+            AdditionalDetails = "Mock implementation"
         };
 
         _logger.LogInformation(
