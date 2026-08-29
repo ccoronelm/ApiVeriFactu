@@ -2,6 +2,7 @@ using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using gesFactu.Application.Common;
 using gesFactu.Application.RegistrosFacturacion.Commands.CrearRegistro;
+using gesFactu.Application.RegistrosFacturacion.Commands.EnviarAEAT;
 using gesFactu.Application.RegistrosFacturacion.Queries.ObtenerRegistro;
 
 namespace gesFactu.Api.Controllers.v1;
@@ -147,6 +148,83 @@ public class BillingRecordsController : ControllerBase
                 }),
 
             Result<BillingRecordDto>.UnexpectedError unexpectedError =>
+                StatusCode(StatusCodes.Status500InternalServerError, new ProblemDetails
+                {
+                    Type = "https://tools.ietf.org/html/rfc9110#section-15.6.1",
+                    Title = "Internal Server Error",
+                    Status = StatusCodes.Status500InternalServerError,
+                    Detail = unexpectedError.Message,
+                    Instance = HttpContext.Request.Path
+                }),
+
+            _ => StatusCode(StatusCodes.Status500InternalServerError)
+        };
+    }
+
+    /// <summary>
+    /// Envía un registro de facturación a AEAT.
+    /// 
+    /// Precondición: El registro debe existir y tener un hash calculado.
+    /// </summary>
+    [HttpPost("{id}/submit")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> SubmitToAEAT(int id, CancellationToken cancellationToken)
+    {
+        _logger.LogInformation("Iniciando envío a AEAT del registro: {Id}", id);
+
+        var command = new EnviarRegistroAEATCommand(id);
+        var result = await _mediator.Send(command, cancellationToken);
+
+        return result switch
+        {
+            Result<EnviarRegistroAEATResponse>.SuccessWithValue success =>
+                Ok(success.Value),
+
+            Result<EnviarRegistroAEATResponse>.NotFoundError notFoundError =>
+                NotFound(new ProblemDetails
+                {
+                    Type = "https://tools.ietf.org/html/rfc9110#section-15.5.4",
+                    Title = "Not Found",
+                    Status = StatusCodes.Status404NotFound,
+                    Detail = $"Registro {notFoundError.Identifier} no encontrado",
+                    Instance = HttpContext.Request.Path
+                }),
+
+            Result<EnviarRegistroAEATResponse>.ConflictError conflictError =>
+                Conflict(new ProblemDetails
+                {
+                    Type = "https://tools.ietf.org/html/rfc9110#section-15.5.10",
+                    Title = "Conflict",
+                    Status = StatusCodes.Status409Conflict,
+                    Detail = conflictError.Message,
+                    Instance = HttpContext.Request.Path
+                }),
+
+            Result<EnviarRegistroAEATResponse>.DomainError domainError =>
+                BadRequest(new ProblemDetails
+                {
+                    Type = "https://tools.ietf.org/html/rfc9110#section-15.5.1",
+                    Title = "Bad Request",
+                    Status = StatusCodes.Status400BadRequest,
+                    Detail = domainError.Message,
+                    Instance = HttpContext.Request.Path
+                }),
+
+            Result<EnviarRegistroAEATResponse>.ExternalServiceError externalError =>
+                StatusCode(StatusCodes.Status503ServiceUnavailable, new ProblemDetails
+                {
+                    Type = "https://tools.ietf.org/html/rfc9110#section-15.6.4",
+                    Title = "Service Unavailable",
+                    Status = StatusCodes.Status503ServiceUnavailable,
+                    Detail = externalError.Message,
+                    Instance = HttpContext.Request.Path
+                }),
+
+            Result<EnviarRegistroAEATResponse>.UnexpectedError unexpectedError =>
                 StatusCode(StatusCodes.Status500InternalServerError, new ProblemDetails
                 {
                     Type = "https://tools.ietf.org/html/rfc9110#section-15.6.1",

@@ -2,7 +2,7 @@
 
 ## ?? Resumen de Fases
 
-**Estado Actual:** Fase 6 en progreso (Tests de Persistencia)
+**Estado Actual:** Fase 7 en progreso (Anti-Corruption Layer AEAT)
 
 ---
 
@@ -47,11 +47,20 @@
 - [x] Base de datos SQL Server local funcional
 - [x] Commit `6199a6d` subido
 
+### **Fase 6: Tests de Persistencia (? Completada)**
+- [x] `BillingRecordRepositoryTests` creado con 19 tests
+- [x] Tests de `AddAsync`, `GetByIdAsync`, `GetPreviousRecordAsync`
+- [x] Tests de `UpdateSubmissionStatusAsync`, `UpdateAeatStatusAsync`
+- [x] Tests de preservación de `Money` y `InvoiceIdentifier`
+- [x] Tests de paginación en `ListByIssuerAsync`
+- [x] 19/20 tests pasando (1 omitido por TODO en filtrado)
+- [x] Commit `24022dd` subido
+
 ---
 
 ## ?? Fases En Progreso / Pendientes
 
-### **Fase 6: Tests de Persistencia (? ACTUAL)**
+### **Fase 6: Tests de Persistencia (? Completada)**
 
 **Objetivo:** Validar que el repositorio, las queries y la persistencia funcionan correctamente
 
@@ -62,12 +71,11 @@
 - [x] Tests de actualización de hash
 - [x] Fixture de base de datos de prueba (SQL Server local opcional)
 - [x] Tests de integración de queries en API
-
-**Prioridad:** ALTA - Validar la capa de persistencia antes de avanzar a AEAT
+- [x] 19/20 tests pasando
 
 ---
 
-### **Fase 7: Anti-Corruption Layer AEAT (Bloque siguiente)**
+### **Fase 7: Anti-Corruption Layer AEAT (? ACTUAL)**
 
 **Objetivo:** Definir los puertos e interfaces para la comunicación con AEAT
 
