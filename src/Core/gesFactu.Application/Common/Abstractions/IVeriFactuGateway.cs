@@ -24,6 +24,14 @@ public interface IVeriFactuGateway
     Task<VeriFactuQueryResult> QueryBillingRecordAsync(
         VeriFactuQueryRequest request,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Solicita la cancelación de un registro en AEAT.
+    /// Requiere el SubmissionId del registro original.
+    /// </summary>
+    Task<VeriFactuCancellationResult> CancelBillingRecordAsync(
+        VeriFactuCancellationRequest request,
+        CancellationToken cancellationToken = default);
 }
 
 /// <summary>
@@ -130,4 +138,51 @@ public record VeriFactuQueryResult
     /// Detalles adicionales.
     /// </summary>
     public string? AdditionalDetails { get; init; }
+}
+
+/// <summary>
+/// Solicitud para cancelar un registro en AEAT.
+/// </summary>
+public record VeriFactuCancellationRequest
+{
+    /// <summary>
+    /// NIF/CIF del contribuyente.
+    /// </summary>
+    public required string TaxpayerNif { get; init; }
+
+    /// <summary>
+    /// Identificador del envío a cancelar (recibido en SubmissionResult).
+    /// </summary>
+    public required string SubmissionId { get; init; }
+
+    /// <summary>
+    /// Motivo de la cancelación (requerido por AEAT).
+    /// </summary>
+    public required string CancellationReason { get; init; }
+}
+
+/// <summary>
+/// Respuesta de AEAT a una solicitud de cancelación.
+/// </summary>
+public record VeriFactuCancellationResult
+{
+    /// <summary>
+    /// Indica si la cancelación fue aceptada.
+    /// </summary>
+    public required bool IsAccepted { get; init; }
+
+    /// <summary>
+    /// Código de estado AEAT.
+    /// </summary>
+    public required string StatusCode { get; init; }
+
+    /// <summary>
+    /// Descripción de la respuesta.
+    /// </summary>
+    public required string StatusDescription { get; init; }
+
+    /// <summary>
+    /// ID de cancelación asignado por AEAT (si fue exitosa).
+    /// </summary>
+    public string? CancellationId { get; init; }
 }

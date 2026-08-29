@@ -32,12 +32,16 @@ public static class DependencyInjection
 
         // Repositorios
         services.AddScoped<IBillingRecordRepository, BillingRecordRepository>();
+        services.AddScoped<SubmissionAttemptRepository>();
 
         // Outbox store para procesamiento confiable
         services.AddScoped<IOutboxStore, OutboxStore>();
 
         // Dead letter store para mensajes irrecuperables
         services.AddScoped<IDeadLetterStore, DeadLetterStore>();
+
+        // Submission attempt store para auditoría
+        services.AddScoped<ISubmissionAttemptStore, SubmissionAttemptStore>();
 
         // Hash calculation (SHA256 para VERI*FACTU)
         services.AddSingleton<IHashCalculator, Sha256HashCalculator>();

@@ -79,4 +79,36 @@ public sealed class VeriFactuGatewayStub : IVeriFactuGateway
 
         return result;
     }
+
+    public async Task<VeriFactuCancellationResult> CancelBillingRecordAsync(
+        VeriFactuCancellationRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        _logger.LogInformation(
+            "STUB: Cancelando registro {SubmissionId} para NIF {TaxpayerNif}. Motivo: {Reason}",
+            request.SubmissionId,
+            request.TaxpayerNif,
+            request.CancellationReason);
+
+        // Simular latencia
+        await Task.Delay(150, cancellationToken);
+
+        var cancellationId = Guid.NewGuid().ToString("N").Substring(0, 20);
+
+        var result = new VeriFactuCancellationResult
+        {
+            IsAccepted = true,
+            StatusCode = "1000",
+            StatusDescription = "Cancelación aceptada por AEAT (STUB)",
+            CancellationId = cancellationId
+        };
+
+        _logger.LogInformation(
+            "STUB: Cancelación completada. CancellationId: {CancellationId}",
+            cancellationId);
+
+        return result;
+    }
 }
