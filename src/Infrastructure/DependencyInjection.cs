@@ -3,6 +3,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using gesFactu.Application.Common.Abstractions;
 using gesFactu.Infrastructure.Persistence;
+using gesFactu.Infrastructure.VeriFactu;
 
 namespace gesFactu.Infrastructure;
 
@@ -25,10 +26,14 @@ public static class DependencyInjection
         services.AddScoped<IApplicationDbContext>(provider =>
             provider.GetRequiredService<ApplicationDbContext>());
 
+        // Hash calculation (SHA256 para VERI*FACTU)
+        services.AddSingleton<IHashCalculator, Sha256HashCalculator>();
+
         // Puerto de AEAT (stub - se implementará después)
         // services.AddScoped<IVeriFactuGateway, VeriFactuGatewayAdapter>();
 
         return services;
     }
 }
+
 

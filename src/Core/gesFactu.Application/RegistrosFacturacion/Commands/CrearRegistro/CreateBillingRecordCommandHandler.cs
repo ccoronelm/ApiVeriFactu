@@ -9,19 +9,22 @@ namespace gesFactu.Application.RegistrosFacturacion.Commands.CrearRegistro;
 
 /// <summary>
 /// Handler para el comando de crear un nuevo registro de facturación.
-/// Orquesta la validación y persistencia sin contener lógica fiscal.
+/// Orquesta la validación, cálculo de hash y persistencia sin contener lógica fiscal.
 /// </summary>
 public sealed class CreateBillingRecordCommandHandler
     : IRequestHandler<CreateBillingRecordCommand, Result<CreateBillingRecordResponse>>
 {
     private readonly IApplicationDbContext _dbContext;
+    private readonly IHashCalculator _hashCalculator;
     private readonly ILogger<CreateBillingRecordCommandHandler> _logger;
 
     public CreateBillingRecordCommandHandler(
         IApplicationDbContext dbContext,
+        IHashCalculator hashCalculator,
         ILogger<CreateBillingRecordCommandHandler> logger)
     {
         _dbContext = dbContext;
+        _hashCalculator = hashCalculator;
         _logger = logger;
     }
 
@@ -120,17 +123,38 @@ public sealed class CreateBillingRecordCommandHandler
                 totalTaxAmount,
                 command.PreviousRecordHash);
 
-            // TODO: En la siguiente fase, se calculará el hash y se establecerá
-            // billingRecord.SetComputedHash(calculatedHash);
+            // Calcular el hash del registro
+            var hashInput = new BillingRecordHashInput
+            {
+                PreviousHash = command.PreviousRecordHash ?? string.Empty,
+                IssuerNif = nif.Value,
+                InvoiceSeries = series.Value,
+                InvoiceNumber = number.Value,
+                IssueDate = command.IssueDate,
+                InvoiceType = string.Empty, // TODO: Incluir tipo de factura cuando sea disponible
+                TotalAmount = totalAmount.Amount,
+                TotalTaxAmount = totalTaxAmount.Amount,
+                Description = command.Description,
+                RegisterTimestamp = DateTime.UtcNow.ToString("o"), // ISO 8601 con zona UTC
+                SoftwareId = "gesFactu-1.0" // TODO: Configurar desde application settings
+            };
 
-            // Persistir - NOTA: ApplicationDbContext debe ser ApplicationDbContext para acceder a BillingRecords
-            // Para ahora, solo guardamos cambios sin agregar el record
+            var calculatedHash = _hashCalculator.CalculateChainHash(hashInput);
+            billingRecord.SetComputedHash(calculatedHash);
+
+            _logger.LogInformation(
+                "Hash calculado para registro: {Hash}",
+                calculatedHash);
+
+            // Persistir
+            // TODO: Agregar DbSet<BillingRecord> a ApplicationDbContext
             // await _dbContext.BillingRecords.AddAsync(billingRecord, cancellationToken);
             await _dbContext.SaveChangesAsync(cancellationToken);
 
             _logger.LogInformation(
-                "Registro de facturación creado exitosamente: {RecordId}",
-                billingRecord.Id);
+                "Registro de facturación creado exitosamente: {RecordId} con hash {Hash}",
+                billingRecord.Id,
+                calculatedHash);
 
             var response = new CreateBillingRecordResponse(
                 billingRecord.Id,
