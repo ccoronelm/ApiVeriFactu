@@ -20,10 +20,21 @@ public interface IBillingRecordRepository
 
     /// <summary>
     /// Obtiene el registro anterior de una factura (para encadenamiento).
+    /// 
+    /// La cadena se forma por serie+contribuyente, ordenada cronológicamente.
+    /// Retorna el registro más reciente de la misma serie del mismo contribuyente
+    /// cuya fecha de emisión sea anterior a la del registro actual.
+    /// Solo considera registros que ya han sido enviados a AEAT.
     /// </summary>
+    /// <param name="issuerNif">NIF del emisor</param>
+    /// <param name="invoiceSeries">Serie de facturas</param>
+    /// <param name="issueDateCurrent">Fecha de emisión del registro actual (límite superior)</param>
+    /// <param name="cancellationToken">Token de cancelación</param>
+    /// <returns>El registro anterior en la cadena, o null si es el primero</returns>
     Task<BillingRecord?> GetPreviousRecordAsync(
         string issuerNif,
         string invoiceSeries,
+        DateOnly issueDateCurrent,
         CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -51,3 +62,4 @@ public interface IBillingRecordRepository
         string status,
         CancellationToken cancellationToken = default);
 }
+
