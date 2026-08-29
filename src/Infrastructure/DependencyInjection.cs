@@ -7,6 +7,7 @@ using gesFactu.Infrastructure.Persistence;
 using gesFactu.Infrastructure.Persistence.Repositories;
 using gesFactu.Infrastructure.VeriFactu;
 using gesFactu.Infrastructure.Integrations.VeriFactu;
+using gesFactu.Infrastructure.Integrations.QRCode;
 using gesFactu.Infrastructure.Outbox;
 
 namespace gesFactu.Infrastructure;
@@ -45,6 +46,9 @@ public static class DependencyInjection
 
         // Hash calculation (SHA256 para VERI*FACTU)
         services.AddSingleton<IHashCalculator, Sha256HashCalculator>();
+
+        // QR Code generator
+        services.AddScoped<IQRCodeGenerator, QRCodeGenerator>();
 
         // Puerto de AEAT (stub para MVP - en producción usar VeriFactuGateway real)
         services.AddScoped<IVeriFactuGateway, VeriFactuGatewayStub>();
