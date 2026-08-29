@@ -112,13 +112,38 @@ public class OutboxProcessorService : BackgroundService
             // Enviar a AEAT
             var result = await veriFactuGateway.SubmitBillingRecordAsync(payload, cancellationToken);
 
-            // Marcar como procesado
-            await outboxStore.MarkAsProcessedAsync(message.Id, cancellationToken);
+            // Evaluar respuesta
+            if (result.IsAccepted)
+            {
+                // Éxito: marcar como procesado
+                await outboxStore.MarkAsProcessedAsync(message.Id, cancellationToken);
 
-            _logger.LogInformation(
-                "Mensaje de outbox {MessageId} procesado exitosamente. SubmissionId: {SubmissionId}",
-                message.Id,
-                result.SubmissionId);
+                _logger.LogInformation(
+                    "Mensaje de outbox {MessageId} procesado exitosamente. SubmissionId: {SubmissionId}",
+                    message.Id,
+                    result.SubmissionId);
+            }
+            else if (result.ResponseCode.IsPermanent())
+            {
+                // Error permanente: no reintentar, marcar como procesado para evitar loop infinito
+                await outboxStore.MarkAsProcessedAsync(message.Id, cancellationToken);
+
+                _logger.LogWarning(
+                    "Mensaje de outbox {MessageId} rechazado permanentemente. Código: {Code}, Motivo: {Description}",
+                    message.Id,
+                    result.ResponseCode,
+                    result.StatusDescription);
+            }
+            else if (result.ResponseCode.IsTransient())
+            {
+                // Error transiente: reintentar más tarde
+                await outboxStore.MarkAsFailedAsync(message.Id, $"{result.ResponseCode}: {result.StatusDescription}", cancellationToken);
+
+                _logger.LogWarning(
+                    "Mensaje de outbox {MessageId} falló temporalmente. Se reintentará. Código: {Code}",
+                    message.Id,
+                    result.ResponseCode);
+            }
         }
         catch (Exception ex)
         {

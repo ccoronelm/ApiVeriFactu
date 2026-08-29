@@ -41,7 +41,8 @@ public sealed class VeriFactuGatewayStub : IVeriFactuGateway
         {
             SubmissionId = submissionId,
             IsAccepted = true,
-            StatusCode = "1000",  // Código éxito AEAT simulado
+            ResponseCode = AeatResponseCode.Success,
+            StatusCode = "1000",
             StatusDescription = "Registro enviado correctamente (STUB)",
             AdditionalDetails = "Mock implementation - not sent to real AEAT",
             ServerTimestamp = DateTime.UtcNow

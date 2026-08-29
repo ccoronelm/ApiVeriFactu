@@ -65,7 +65,12 @@ public record VeriFactuSubmissionResult
     public required bool IsAccepted { get; init; }
 
     /// <summary>
-    /// Código de estado AEAT.
+    /// Código de respuesta clasificado (para decisiones de retry).
+    /// </summary>
+    public required AeatResponseCode ResponseCode { get; init; }
+
+    /// <summary>
+    /// Código de estado AEAT (numérico o alfanumérico original).
     /// </summary>
     public required string StatusCode { get; init; }
 
