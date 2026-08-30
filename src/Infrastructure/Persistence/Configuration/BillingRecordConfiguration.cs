@@ -23,6 +23,14 @@ public sealed class BillingRecordConfiguration : IEntityTypeConfiguration<Billin
             .IsRequired()
             .HasMaxLength(120);
 
+        builder.Property(e => e.RecipientNif)
+            .IsRequired()
+            .HasMaxLength(9);
+
+        builder.Property(e => e.RecipientName)
+            .IsRequired()
+            .HasMaxLength(120);
+
         builder.Property(e => e.Description)
             .IsRequired()
             .HasMaxLength(500);
