@@ -64,7 +64,7 @@ public static class VeriFactuServiceCollectionExtensions
         if (options.Environment == VeriFactuEntorno.Production &&
             !string.Equals(
                 options.ClientMode,
-                VeriFactuClientMode.Soap,
+                "SoapClient",
                 StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidOperationException(
