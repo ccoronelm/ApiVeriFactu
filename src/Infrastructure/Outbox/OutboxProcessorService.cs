@@ -257,6 +257,51 @@ public sealed class OutboxProcessorService : BackgroundService
                 return;
             }
 
+            if (result.IsDuplicate &&
+                result.DuplicateRecordStatus is "Correcta" or "AceptadaConErrores")
+            {
+                var reconciledStatus =
+                    result.DuplicateRecordStatus == "AceptadaConErrores"
+                        ? "AceptadoConErroresPorDuplicadoAEAT"
+                        : "AceptadoPorDuplicadoAEAT";
+
+                var reconciliationDescription =
+                    result.StatusDescription +
+                    " | Reconciliado como éxito: AEAT confirma que el registro duplicado ya existe " +
+                    $"con estado {result.DuplicateRecordStatus}." +
+                    (string.IsNullOrWhiteSpace(result.DuplicateRequestId)
+                        ? string.Empty
+                        : $" IdPeticionRegistroDuplicado={result.DuplicateRequestId}.");
+
+                await attemptStore.MarkAsSuccessAsync(
+                    attempt.Id,
+                    result.ErrorCode ?? "3000",
+                    reconciliationDescription,
+                    result.RawResponsePayload,
+                    aeatSubmissionId: null,
+                    duration,
+                    cancellationToken);
+
+                await billingRepository.UpdateAeatStatusAsync(
+                    message.AggregateId,
+                    reconciledStatus,
+                    cancellationToken);
+
+                await outboxStore.MarkAsProcessedAsync(
+                    message.Id,
+                    cancellationToken);
+
+                _options.CircuitBreaker.RecordSuccess();
+
+                _logger.LogWarning(
+                    "Outbox {MessageId} reconciliado por duplicado AEAT. EstadoRegistroDuplicado={DuplicateStatus}, IdPeticion={DuplicateRequestId}",
+                    message.Id,
+                    result.DuplicateRecordStatus,
+                    result.DuplicateRequestId ?? "(sin id)");
+
+                return;
+            }
+
             if (result.ResponseCode.IsTransient())
             {
                 await attemptStore.MarkAsTransientFailureAsync(
