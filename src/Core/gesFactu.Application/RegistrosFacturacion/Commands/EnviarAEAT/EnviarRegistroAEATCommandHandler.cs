@@ -8,43 +8,34 @@ using gesFactu.Domain.Entities;
 namespace gesFactu.Application.RegistrosFacturacion.Commands.EnviarAEAT;
 
 /// <summary>
-/// Handler para enviar un registro de facturación a AEAT.
-/// 
-/// Implementa Transactional Outbox:
-/// 1. Obtención del registro desde repositorio
-/// 2. Validación de precondiciones (debe estar pendiente, con hash)
-/// 3. Mapeo a solicitud AEAT
-/// 4. Creación de mensaje en outbox (atómicamente con actualización de estado)
-/// 5. El procesador background maneja el envío a AEAT y reintentos
-/// 
-/// Ventajas:
-/// - La operación es idempotente (no hay duplicados por reintentos)
-/// - La entrega a AEAT es confiable (se reintentar si falla)
-/// - Sin bloqueos mientras se espera respuesta de AEAT
-/// - Separación clara entre cambio de estado y comunicación externa
-/// 
-/// Ref: /VERIFACTU - Reglamentación de envío y estados
+/// Prepara el envÃ­o de un registro a AEAT mediante Transactional Outbox.
+///
+/// Flujo:
+/// 1. Carga y valida el registro.
+/// 2. Genera el XML RegistroAlta.
+/// 3. Valida obligatoriamente el XML contra el XSD oficial.
+/// 4. Solo si el XML es vÃ¡lido crea el mensaje de Outbox.
 /// </summary>
 public sealed class EnviarRegistroAEATCommandHandler
     : IRequestHandler<EnviarRegistroAEATCommand, Result<EnviarRegistroAEATResponse>>
 {
     private readonly IBillingRecordRepository _repository;
-    private readonly IOutboxStore _outboxStore;
     private readonly IApplicationDbContext _dbContext;
     private readonly IRegistroAltaXmlBuilder _xmlBuilder;
+    private readonly IXmlSchemaValidator _xmlSchemaValidator;
     private readonly ILogger<EnviarRegistroAEATCommandHandler> _logger;
 
     public EnviarRegistroAEATCommandHandler(
         IBillingRecordRepository repository,
-        IOutboxStore outboxStore,
         IApplicationDbContext dbContext,
         IRegistroAltaXmlBuilder xmlBuilder,
+        IXmlSchemaValidator xmlSchemaValidator,
         ILogger<EnviarRegistroAEATCommandHandler> logger)
     {
         _repository = repository;
-        _outboxStore = outboxStore;
         _dbContext = dbContext;
         _xmlBuilder = xmlBuilder;
+        _xmlSchemaValidator = xmlSchemaValidator;
         _logger = logger;
     }
 
@@ -53,52 +44,71 @@ public sealed class EnviarRegistroAEATCommandHandler
         CancellationToken cancellationToken)
     {
         _logger.LogInformation(
-            "Iniciando envío de registro {BillingRecordId} a AEAT",
+            "Preparando envÃ­o del registro {BillingRecordId} a AEAT",
             command.BillingRecordId);
 
-        // 1. Obtener registro
-        var record = await _repository.GetByIdAsync(command.BillingRecordId, cancellationToken);
+        var record = await _repository.GetByIdAsync(
+            command.BillingRecordId,
+            cancellationToken);
 
-        if (record == null)
+        if (record is null)
         {
-            _logger.LogWarning("Registro no encontrado: {BillingRecordId}", command.BillingRecordId);
             return new Result<EnviarRegistroAEATResponse>.NotFoundError(
                 "BillingRecord",
                 command.BillingRecordId.ToString());
         }
 
-        // 2. Validar precondiciones
         if (record.IsSubmitted)
         {
-            _logger.LogWarning(
-                "Registro ya fue enviado a AEAT: {BillingRecordId}, SubmissionId: {SubmissionId}",
-                command.BillingRecordId,
-                record.AeatSubmissionId);
-
             return new Result<EnviarRegistroAEATResponse>.ConflictError(
-                "El registro ya fue enviado a AEAT");
+                "El registro ya fue preparado/enviado a AEAT");
         }
 
         if (string.IsNullOrWhiteSpace(record.ComputedHash))
         {
-            _logger.LogWarning(
-                "Registro sin hash calculado: {BillingRecordId}",
-                command.BillingRecordId);
-
             return new Result<EnviarRegistroAEATResponse>.DomainError(
                 "NO_HASH",
-                "El registro debe tener un hash calculado antes de enviar a AEAT");
+                "El registro debe tener una huella calculada antes de enviarse a AEAT");
+        }
+
+        if (string.IsNullOrWhiteSpace(record.RegisterTimestamp))
+        {
+            return new Result<EnviarRegistroAEATResponse>.DomainError(
+                "NO_REGISTER_TIMESTAMP",
+                "El registro debe tener FechaHoraHusoGenRegistro persistida antes de enviarse a AEAT");
         }
 
         try
         {
-            // 3. Mapear a solicitud AEAT (el XML lo genera Infrastructure via IRegistroAltaXmlBuilder)
-            var request = BillingRecordToVeriFactuMapper.MapToSubmissionRequest(record, _xmlBuilder);
+            var request = BillingRecordToVeriFactuMapper.MapToSubmissionRequest(
+                record,
+                _xmlBuilder);
 
-            // Crear correlationId único para este intento
+            var validation = await _xmlSchemaValidator.ValidateAsync(
+                request.SignedXmlContent,
+                VeriFactuXmlSchemaType.BillingRecord,
+                cancellationToken);
+
+            if (!validation.IsValid)
+            {
+                var details = string.Join(
+                    " | ",
+                    validation.Errors.Select(e => e.Message));
+
+                _logger.LogError(
+                    "XML RegistroAlta invÃ¡lido para BillingRecord {BillingRecordId}: {ValidationErrors}",
+                    record.Id,
+                    details);
+
+                return new Result<EnviarRegistroAEATResponse>.DomainError(
+                    "INVALID_AEAT_XML",
+                    $"El XML generado no cumple el XSD oficial AEAT: {details}");
+            }
+
             var correlationId = Guid.NewGuid();
 
-            // 4. Marcar registro como en envío y crear mensaje de outbox (atómicamente)
+            // AquÃ­ AeatSubmissionId todavÃ­a contiene el identificador local de correlaciÃ³n.
+            // Se sustituirÃ¡ por el CSV/identificador real cuando el Outbox procese la respuesta AEAT.
             record.MarkAsSubmitted(correlationId.ToString());
 
             var outboxMessage = new OutboxMessage
@@ -117,32 +127,30 @@ public sealed class EnviarRegistroAEATCommandHandler
             await _dbContext.SaveChangesAsync(cancellationToken);
 
             _logger.LogInformation(
-                "Mensaje de outbox creado para registro {BillingRecordId}, CorrelationId: {CorrelationId}",
-                command.BillingRecordId,
+                "Registro {BillingRecordId} validado por XSD y aÃ±adido al Outbox. CorrelationId={CorrelationId}",
+                record.Id,
                 correlationId);
 
-            // Retornar respuesta inmediata al cliente
-            // El procesamiento real ocurre en background via OutboxProcessorService
             return new Result<EnviarRegistroAEATResponse>.SuccessWithValue(
                 new EnviarRegistroAEATResponse
                 {
-                    BillingRecordId = command.BillingRecordId,
+                    BillingRecordId = record.Id,
                     AeatSubmissionId = correlationId.ToString(),
-                    IsAccepted = false, // No sabemos aún, será actualizado por el processor
+                    IsAccepted = false,
                     Status = "PENDING",
-                    StatusDescription = "Enviando a AEAT (procesamiento en background)",
-                    Details = "El registro se procesará asincronamente. Use el CorrelationId para rastrear el estado."
+                    StatusDescription = "Pendiente de envÃ­o a AEAT",
+                    Details = "XML validado contra XSD oficial. Procesamiento asÃ­ncrono mediante Outbox."
                 });
         }
         catch (Exception ex)
         {
             _logger.LogError(
                 ex,
-                "Error inesperado al preparar envío de registro {BillingRecordId}",
+                "Error al preparar el envÃ­o del registro {BillingRecordId}",
                 command.BillingRecordId);
 
             return new Result<EnviarRegistroAEATResponse>.ExternalServiceError(
-                "Error al preparar envío a AEAT",
+                "Error al preparar envÃ­o a AEAT",
                 ex.Message);
         }
     }
