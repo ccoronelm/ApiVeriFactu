@@ -303,4 +303,4 @@ static Task WriteHealthResponseAsync(
             }));
 }
 
-public partial class Program;
+public partial class Program { }
