@@ -53,6 +53,11 @@ namespace gesFactu.Infrastructure.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
+                    b.Property<string>("FiscalInvoiceNumber")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("nvarchar(60)");
+
                     b.Property<string>("InvoiceNumber")
                         .IsRequired()
                         .HasMaxLength(60)
@@ -88,6 +93,9 @@ namespace gesFactu.Infrastructure.Migrations
                     b.Property<DateTime?>("LastModifiedDate")
                         .HasColumnType("datetime2");
 
+                    b.Property<int?>("PreviousBillingRecordId")
+                        .HasColumnType("int");
+
                     b.Property<string>("PreviousRecordHash")
                         .HasMaxLength(64)
                         .HasColumnType("nvarchar(64)");
@@ -113,6 +121,16 @@ namespace gesFactu.Infrastructure.Migrations
                         .HasColumnType("decimal(18,2)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("PreviousBillingRecordId")
+                        .HasDatabaseName("IX_BillingRecords_PreviousBillingRecordId");
+
+                    b.HasIndex("IssuerNif", "Id")
+                        .HasDatabaseName("IX_BillingRecords_Issuer_GenerationOrder");
+
+                    b.HasIndex("IssuerNif", "FiscalInvoiceNumber", "IssueDate")
+                        .IsUnique()
+                        .HasDatabaseName("UX_BillingRecords_FiscalIdentity");
 
                     b.ToTable("BillingRecords", (string)null);
                 });
