@@ -69,6 +69,7 @@ builder.Services.AddApplicationServices();
 builder.Services.AddInfrastructureServices(builder.Configuration);
 
 builder.Services.AddControllers();
+builder.Services.AddAuthorization();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
@@ -82,10 +83,14 @@ builder.Services
         tags: ["ready"]);
 
 var allowedOrigins =
-    builder.Configuration
+    (builder.Configuration
         .GetSection("Cors:AllowedOrigins")
         .Get<string[]>()
-    ?? Array.Empty<string>();
+    ?? Array.Empty<string>())
+    .Where(x => !string.IsNullOrWhiteSpace(x))
+    .Select(x => x.Trim())
+    .Distinct(StringComparer.OrdinalIgnoreCase)
+    .ToArray();
 
 builder.Services.AddCors(options =>
 {
