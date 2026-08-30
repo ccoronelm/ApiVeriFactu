@@ -26,6 +26,7 @@ public static class VeriFactuServiceCollectionExtensions
 
         services.Configure<VeriFactuOptions>(section);
         services.AddSingleton<CertificateLoader>();
+        services.AddScoped<IVeriFactuTaxpayerContext, ConfiguredVeriFactuTaxpayerContext>();
 
         var mode = options.ClientMode?.Trim().ToLowerInvariant();
 
