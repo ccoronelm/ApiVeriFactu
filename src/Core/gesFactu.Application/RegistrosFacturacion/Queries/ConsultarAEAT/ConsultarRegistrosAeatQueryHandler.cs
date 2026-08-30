@@ -78,11 +78,11 @@ public sealed class ConsultarRegistrosAeatQueryHandler
 
         if (issueDateFromResult.Value.HasValue &&
             issueDateToResult.Value.HasValue &&
-            issueDateFromResult.Value.Value > issueDateToResult.Value.Value)
+            issueDateFromResult.Value.Value >= issueDateToResult.Value.Value)
         {
             return Validation(
                 nameof(query.IssueDateFrom),
-                "IssueDateFrom no puede ser posterior a IssueDateTo.");
+                "IssueDateFrom debe ser anterior a IssueDateTo.");
         }
 
         var hasCounterpartyNif = !string.IsNullOrWhiteSpace(query.CounterpartyNif);
