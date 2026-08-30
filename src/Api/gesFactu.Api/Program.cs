@@ -237,7 +237,10 @@ app.UseSerilogRequestLogging(options =>
 });
 
 app.UseMiddleware<GlobalExceptionMiddleware>();
+app.UseRouting();
 app.UseRateLimiter();
+
+app.UseCors("Frontend");
 app.UseMiddleware<ApiKeyAuthenticationMiddleware>();
 app.UseMiddleware<IdempotencyMiddleware>();
 
@@ -251,7 +254,6 @@ if (openApiEnabled)
     app.UseSwaggerUI();
 }
 
-app.UseCors("Frontend");
 app.UseAuthorization();
 
 app.MapHealthChecks(
