@@ -108,7 +108,8 @@ public sealed class OperationsController : ControllerBase
 
     private bool IsAuthorized()
     {
-        if (string.IsNullOrWhiteSpace(_options.AdminApiKey))
+        var expected = _options.ResolveAdminApiKey();
+        if (string.IsNullOrWhiteSpace(expected))
             return false;
 
         if (!Request.Headers.TryGetValue(AdminHeader, out var supplied) ||
@@ -118,7 +119,7 @@ public sealed class OperationsController : ControllerBase
         }
 
         var expectedHash = SHA256.HashData(
-            Encoding.UTF8.GetBytes(_options.AdminApiKey));
+            Encoding.UTF8.GetBytes(expected));
         var suppliedHash = SHA256.HashData(
             Encoding.UTF8.GetBytes(supplied.ToString()));
 
