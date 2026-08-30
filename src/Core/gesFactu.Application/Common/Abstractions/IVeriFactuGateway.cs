@@ -77,6 +77,12 @@ public record VeriFactuSubmissionResult
     /// </summary>
     public string? DuplicateRecordStatus { get; init; }
 
+    /// <summary>
+    /// IdPeticionRegistroDuplicado devuelto por AEAT cuando Error 3000 identifica
+    /// el registro previamente almacenado.
+    /// </summary>
+    public string? DuplicateRequestId { get; init; }
+
     public string? AdditionalDetails { get; init; }
 
     /// <summary>
