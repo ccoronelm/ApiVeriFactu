@@ -59,11 +59,15 @@ public sealed class CreateRectificativeBillingRecordCommandHandler
         if (invoiceType is not ("R1" or "R2" or "R3" or "R4" or "R5"))
             return Validation(nameof(command.InvoiceType), "TipoFactura rectificativa debe ser R1, R2, R3, R4 o R5.");
 
-        if (invoiceType == "R5" && source.InvoiceType != "F2")
-            return Validation(nameof(command.InvoiceType), "R5 se reserva para rectificación de facturas simplificadas F2.");
+        if (invoiceType == "R5" && source.InvoiceType is not ("F2" or "R5"))
+            return Validation(
+                nameof(command.InvoiceType),
+                "R5 se reserva para rectificación de facturas simplificadas F2/R5.");
 
-        if (invoiceType != "R5" && source.InvoiceType == "F2")
-            return Validation(nameof(command.InvoiceType), "Una factura simplificada F2 debe rectificarse mediante R5.");
+        if (invoiceType != "R5" && source.InvoiceType is "F2" or "R5")
+            return Validation(
+                nameof(command.InvoiceType),
+                "Una factura simplificada F2/R5 debe rectificarse mediante R5.");
 
         var rectificationType = command.RectificationType.Trim().ToUpperInvariant();
         if (rectificationType is not ("I" or "S"))
@@ -130,19 +134,16 @@ public sealed class CreateRectificativeBillingRecordCommandHandler
         var identifier =
             ((ValueObjectResult<InvoiceIdentifier>.SuccessWithValue)identifierResult).Value;
 
-        var totalResult = Money.Create(command.TotalAmount);
+        var totalResult = Money.CreateSigned(command.TotalAmount);
         if (totalResult is ValueObjectResult<Money>.ValidationError totalError)
             return Validation(nameof(command.TotalAmount), totalError.Message);
 
-        var taxResult = Money.Create(command.TotalTaxAmount);
+        var taxResult = Money.CreateSigned(command.TotalTaxAmount);
         if (taxResult is ValueObjectResult<Money>.ValidationError taxError)
             return Validation(nameof(command.TotalTaxAmount), taxError.Message);
 
         var total = ((ValueObjectResult<Money>.SuccessWithValue)totalResult).Value;
         var tax = ((ValueObjectResult<Money>.SuccessWithValue)taxResult).Value;
-
-        if (tax.Amount > total.Amount)
-            return Validation(nameof(command.TotalTaxAmount), "La cuota no puede superar el importe total.");
 
         try
         {
