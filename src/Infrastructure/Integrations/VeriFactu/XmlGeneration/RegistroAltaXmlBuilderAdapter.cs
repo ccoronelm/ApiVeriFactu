@@ -139,8 +139,11 @@ public sealed class RegistroAltaXmlBuilderAdapter : IRegistroAltaXmlBuilder
             new XElement(ns + "TipoHuella", "01"),
             new XElement(ns + "Huella", data.ComputedHash));
 
+        // Cabecera es elemento local de RegFactuSistemaFacturacion y, por
+        // elementFormDefault="qualified" de SuministroLR.xsd, pertenece a sfLR.
+        // Su contenido está tipado por sf:CabeceraType.
         var cabecera = new XElement(
-            ns + "Cabecera",
+            nsLr + "Cabecera",
             new XElement(
                 ns + "ObligadoEmision",
                 new XElement(ns + "NombreRazon", taxpayer.Name),
