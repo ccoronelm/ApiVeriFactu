@@ -346,10 +346,10 @@ public static class VeriFactuQueryXmlCodec
 
         if (request.IssueDateFrom.HasValue &&
             request.IssueDateTo.HasValue &&
-            request.IssueDateFrom.Value > request.IssueDateTo.Value)
+            request.IssueDateFrom.Value >= request.IssueDateTo.Value)
         {
             throw new ArgumentException(
-                "IssueDateFrom no puede ser posterior a IssueDateTo.",
+                "IssueDateFrom debe ser anterior a IssueDateTo.",
                 nameof(request));
         }
 
