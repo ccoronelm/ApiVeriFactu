@@ -16,11 +16,11 @@ public interface IApplicationDbContext
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Obtiene un bloqueo exclusivo, limitado a la transacción actual,
-    /// para serializar la generación de la cadena fiscal indicada.
+    /// Obtiene un bloqueo exclusivo de aplicación, limitado a la transacción actual.
+    /// Permite serializar secciones críticas entre varias instancias de la API.
     /// </summary>
-    Task AcquireFiscalChainLockAsync(
-        string chainKey,
+    Task AcquireExclusiveLockAsync(
+        string resourceKey,
         CancellationToken cancellationToken = default);
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
