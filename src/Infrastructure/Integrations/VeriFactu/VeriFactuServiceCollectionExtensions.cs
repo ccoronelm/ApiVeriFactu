@@ -118,7 +118,12 @@ public static class VeriFactuServiceCollectionExtensions
             var hasThumbprint = !string.IsNullOrWhiteSpace(taxpayer.Certificate.Thumbprint);
             var hasPfx = !string.IsNullOrWhiteSpace(taxpayer.Certificate.PfxPath);
             if (!hasThumbprint && !hasPfx)
-                missing.Add($"Taxpayers:{label}:Certificate");
+            {
+                missing.Add(
+                    options.Taxpayers.Count == 0
+                        ? "Certificate:Thumbprint o Certificate:PfxPath"
+                        : $"Taxpayers:{label}:Certificate");
+            }
         }
 
         if (taxpayers
