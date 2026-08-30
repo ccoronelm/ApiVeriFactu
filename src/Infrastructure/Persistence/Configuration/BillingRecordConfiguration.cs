@@ -4,15 +4,6 @@ using gesFactu.Domain.Entities;
 
 namespace gesFactu.Infrastructure.Persistence.Configuration;
 
-/// <summary>
-/// Configuración EF Core para BillingRecord.
-/// 
-/// Estrategia: Por simplicidad en el MVP, permitimos que EF Core cree la estructura automáticamente
-/// para las propiedades escalares, e ignoramos los value objects complejos (InvoiceIdentifier, Money)
-/// que requieren conversiones personalizadas sofisticadas.
-/// 
-/// Estos value objects se reconstruirán en el repositorio durante la lectura.
-/// </summary>
 public sealed class BillingRecordConfiguration : IEntityTypeConfiguration<BillingRecord>
 {
     public void Configure(EntityTypeBuilder<BillingRecord> builder)
@@ -20,7 +11,6 @@ public sealed class BillingRecordConfiguration : IEntityTypeConfiguration<Billin
         builder.HasKey(e => e.Id);
         builder.Property(e => e.Id).ValueGeneratedOnAdd();
 
-        // Auditoría
         builder.Property(e => e.CreateDate)
             .HasDefaultValueSql("GETUTCDATE()")
             .ValueGeneratedOnAdd();
@@ -31,7 +21,6 @@ public sealed class BillingRecordConfiguration : IEntityTypeConfiguration<Billin
         builder.Property(e => e.LastModifiedDate);
         builder.Property(e => e.LastModifiedBy).HasMaxLength(256);
 
-        // Datos básicos
         builder.Property(e => e.IssuerName)
             .IsRequired()
             .HasMaxLength(120);
@@ -40,7 +29,10 @@ public sealed class BillingRecordConfiguration : IEntityTypeConfiguration<Billin
             .IsRequired()
             .HasMaxLength(500);
 
-        // Hash y encadenamiento
+        builder.Property(e => e.RegisterTimestamp)
+            .IsRequired()
+            .HasMaxLength(25);
+
         builder.Property(e => e.PreviousRecordHash)
             .HasMaxLength(64);
 
@@ -48,7 +40,6 @@ public sealed class BillingRecordConfiguration : IEntityTypeConfiguration<Billin
             .IsRequired()
             .HasMaxLength(64);
 
-        // Envío a AEAT
         builder.Property(e => e.IsSubmitted)
             .HasDefaultValue(false);
 
@@ -60,13 +51,8 @@ public sealed class BillingRecordConfiguration : IEntityTypeConfiguration<Billin
             .HasMaxLength(50)
             .HasDefaultValue("Pendiente");
 
-        // Ignoramos InvoiceIdentifier y Money para esta migración inicial.
-        // EF Core no puede mapearlos automáticamente sin conversiones personalizadas complejas.
         builder.Ignore(e => e.InvoiceIdentifier);
-        builder.Ignore(e => e.TotalAmount);
-        builder.Ignore(e => e.TotalTaxAmount);
 
-        // Mapeamos las propiedades desnormalizadas de InvoiceIdentifier
         builder.Property(e => e.IssuerNif)
             .IsRequired()
             .HasMaxLength(9);
@@ -82,7 +68,6 @@ public sealed class BillingRecordConfiguration : IEntityTypeConfiguration<Billin
         builder.Property(e => e.IssueDate)
             .IsRequired();
 
-        // Mapeamos los importes desnormalizados
         builder.Property(e => e.TotalAmount)
             .HasPrecision(18, 2)
             .IsRequired();
