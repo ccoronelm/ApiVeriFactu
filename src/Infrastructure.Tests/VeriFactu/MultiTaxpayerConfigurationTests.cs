@@ -1,4 +1,6 @@
 using gesFactu.Infrastructure.Integrations.VeriFactu;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Xunit;
 
@@ -45,6 +47,35 @@ public sealed class MultiTaxpayerConfigurationTests
             "INST-B",
             options.GetSistemaInformaticoForTaxpayer("87654321B")
                 .NumeroInstalacion);
+    }
+
+    [Fact]
+    public void Startup_ConVariosObligadosYFlagsMultiN_FallaCerrado()
+    {
+        var values = new Dictionary<string, string?>
+        {
+            ["VeriFactu:ClientMode"] = "Stub",
+            ["VeriFactu:Environment"] = "Test",
+            ["VeriFactu:Taxpayers:0:Key"] = "a",
+            ["VeriFactu:Taxpayers:0:Nif"] = "12345678A",
+            ["VeriFactu:Taxpayers:0:Name"] = "A",
+            ["VeriFactu:Taxpayers:1:Key"] = "b",
+            ["VeriFactu:Taxpayers:1:Nif"] = "87654321B",
+            ["VeriFactu:Taxpayers:1:Name"] = "B",
+            ["VeriFactu:SistemaInformatico:TipoUsoPosibleMultiOT"] = "N",
+            ["VeriFactu:SistemaInformatico:IndicadorMultiplesOT"] = "N"
+        };
+
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(values)
+            .Build();
+
+        var services = new ServiceCollection();
+
+        var ex = Assert.Throws<InvalidOperationException>(
+            () => services.AddVeriFactuClient(configuration));
+
+        Assert.Contains("TipoUsoPosibleMultiOT", ex.Message);
     }
 
     private static VeriFactuOptions CreateOptions()
