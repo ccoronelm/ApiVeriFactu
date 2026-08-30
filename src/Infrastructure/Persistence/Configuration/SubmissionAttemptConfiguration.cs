@@ -5,7 +5,7 @@ using gesFactu.Domain.Entities;
 namespace gesFactu.Infrastructure.Persistence.Configuration;
 
 /// <summary>
-/// Configuración de EF Core para SubmissionAttempt.
+/// ConfiguraciÃ³n de EF Core para SubmissionAttempt.
 /// </summary>
 public class SubmissionAttemptConfiguration : IEntityTypeConfiguration<SubmissionAttempt>
 {
@@ -35,7 +35,7 @@ public class SubmissionAttemptConfiguration : IEntityTypeConfiguration<Submissio
             .HasMaxLength(50);
 
         builder.Property(x => x.ResponseDescription)
-            .HasMaxLength(1000);
+            .HasMaxLength(2000);
 
         builder.Property(x => x.ResponsePayload)
             .HasColumnType("nvarchar(max)");
@@ -54,18 +54,19 @@ public class SubmissionAttemptConfiguration : IEntityTypeConfiguration<Submissio
         builder.Property(x => x.Notes)
             .HasMaxLength(1000);
 
-        // Relación con BillingRecord
+        // RelaciÃ³n con BillingRecord
         builder.HasOne(x => x.BillingRecord)
             .WithMany(br => br.SubmissionAttempts)
             .HasForeignKey(x => x.BillingRecordId)
             .OnDelete(DeleteBehavior.Cascade);
 
-        // Índices para queries frecuentes
+        // Ãndices para queries frecuentes
         builder.HasIndex(x => x.BillingRecordId)
             .HasDatabaseName("IX_SubmissionAttempts_BillingRecordId");
 
         builder.HasIndex(x => new { x.BillingRecordId, x.AttemptNumber })
-            .HasDatabaseName("IX_SubmissionAttempts_BillingRecordAndAttempt");
+            .IsUnique()
+            .HasDatabaseName("UX_SubmissionAttempts_BillingRecordAndAttempt");
 
         builder.HasIndex(x => new { x.Status, x.SubmittedAt })
             .HasDatabaseName("IX_SubmissionAttempts_StatusAndTime");

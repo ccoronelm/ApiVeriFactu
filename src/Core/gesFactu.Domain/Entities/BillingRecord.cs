@@ -1,118 +1,147 @@
+using System.Globalization;
 using gesFactu.Domain.Common;
 using gesFactu.Domain.ValueObjects;
 
 namespace gesFactu.Domain.Entities;
 
 /// <summary>
-/// Registro de facturaci髇 (alta) en VERI*FACTU.
-/// Es el agregado ra韟 que encapsula el estado de una factura registrada.
-/// 
-/// Ref: /VERIFACTU/SuministroInformacion.xsd.xml - RegistroFacturacionAltaType
-/// 
-/// Nota de persistencia: Para simplificar el mapeo EF Core en MVP,
-/// se desnormalizan los Value Objects en propiedades escalares.
+/// Registro de facturaci贸n (alta) en VERI*FACTU.
 /// </summary>
 public class BillingRecord : BaseDomainModel
 {
-    /// <summary>
-    /// Identificador 鷑ico de la factura (Value Object).
-    /// Internamente compuesto por NIF del emisor, serie, n鷐ero e fecha de emisi髇.
-    /// </summary>
     public required InvoiceIdentifier InvoiceIdentifier { get; set; }
 
-    /// <summary>
-    /// NIF/CIF del emisor (desnormalizado para EF Core).
-    /// </summary>
     public string IssuerNif { get; set; } = string.Empty;
-
-    /// <summary>
-    /// Serie de la factura (desnormalizado para EF Core).
-    /// </summary>
     public string InvoiceSeries { get; set; } = string.Empty;
-
-    /// <summary>
-    /// N鷐ero de la factura (desnormalizado para EF Core).
-    /// </summary>
     public string InvoiceNumber { get; set; } = string.Empty;
 
     /// <summary>
-    /// Fecha de emisi髇 (desnormalizado para EF Core).
+    /// NumSerieFactura exactamente como se identifica fiscalmente ante AEAT:
+    /// serie + n煤mero, sin separador a帽adido por gesFactu.
     /// </summary>
+    public string FiscalInvoiceNumber { get; set; } = string.Empty;
+
     public DateOnly IssueDate { get; set; }
 
-    /// <summary>
-    /// Nombre o raz髇 social del emisor de la factura.
-    /// </summary>
     public required string IssuerName { get; set; }
 
     /// <summary>
-    /// Descripci髇 de la operaci髇 / concepto.
+    /// Destinatario obligatorio para facturas F1.
     /// </summary>
+    public string RecipientNif { get; set; } = string.Empty;
+    public string RecipientName { get; set; } = string.Empty;
+
     public required string Description { get; set; }
 
-    /// <summary>
-    /// Importe total de la factura (base + impuestos).
-    /// </summary>
     public decimal TotalAmount { get; set; }
-
-    /// <summary>
-    /// Cuota total de impuesto.
-    /// </summary>
     public decimal TotalTaxAmount { get; set; }
 
     /// <summary>
-    /// Hash/huella del registro anterior en la cadena (para encadenamiento).
-    /// Null si es el primer registro de la serie.
+    /// Valor exacto usado en FechaHoraHusoGenRegistro y en la huella.
+    /// </summary>
+    public string RegisterTimestamp { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Identificador interno del RF inmediatamente anterior de la cadena.
+    /// Null solo para el primer RF del obligado tributario en este SIF.
+    /// </summary>
+    public int? PreviousBillingRecordId { get; set; }
+
+    /// <summary>
+    /// Huella del RF inmediatamente anterior.
     /// </summary>
     public string? PreviousRecordHash { get; set; }
 
-    /// <summary>
-    /// Hash/huella calculada para este registro.
-    /// Se calcula seg鷑 la especificaci髇 de VERI*FACTU.
-    /// </summary>
     public string? ComputedHash { get; set; }
 
-    /// <summary>
-    /// Indica si el registro ha sido enviado a AEAT.
-    /// </summary>
     public bool IsSubmitted { get; set; }
 
     /// <summary>
-    /// Identificador de env韔 asignado por AEAT (si fue enviado).
+    /// Correlaci贸n local de la remisi贸n as铆ncrona. No es un identificador AEAT.
+    /// </summary>
+    public Guid? SubmissionCorrelationId { get; set; }
+
+    /// <summary>
+    /// CSV real devuelto por AEAT cuando el env铆o no es rechazado.
     /// </summary>
     public string? AeatSubmissionId { get; set; }
 
-    /// <summary>
-    /// Estado actual del registro en AEAT.
-    /// Valores: "Pendiente", "Enviado", "Aceptado", "Rechazado", etc.
-    /// </summary>
     public string Status { get; set; } = "Pendiente";
 
-    /// <summary>
-    /// Constructor privado para Entity Framework.
-    /// </summary>
     private BillingRecord() { }
 
-    /// <summary>
-    /// Factory method para crear un nuevo registro de facturaci髇.
-    /// Valida que todos los datos sean consistentes.
-    /// </summary>
     public static BillingRecord Create(
         InvoiceIdentifier invoiceIdentifier,
         string issuerName,
+        string recipientNif,
+        string recipientName,
         string description,
         Money totalAmount,
         Money totalTaxAmount,
-        string? previousRecordHash = null)
+        int? previousBillingRecordId = null,
+        string? previousRecordHash = null,
+        string? registerTimestamp = null)
     {
+        ArgumentNullException.ThrowIfNull(invoiceIdentifier);
+
         if (string.IsNullOrWhiteSpace(issuerName))
             throw new InvalidOperationException("El nombre del emisor es requerido");
 
+        if (issuerName.Trim().Length > 120)
+            throw new InvalidOperationException("El nombre del emisor no puede superar 120 caracteres");
+
+        if (string.IsNullOrWhiteSpace(recipientNif))
+            throw new InvalidOperationException("El NIF del destinatario es requerido para F1");
+
+        if (recipientNif.Trim().Length != 9)
+            throw new InvalidOperationException("El NIF del destinatario debe tener exactamente 9 caracteres");
+
+        if (string.Equals(
+                invoiceIdentifier.IssuerNif.Value,
+                recipientNif.Trim(),
+                StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException(
+                "El NIF del destinatario debe ser distinto del NIF del obligado emisor");
+        }
+
+        if (string.IsNullOrWhiteSpace(recipientName))
+            throw new InvalidOperationException("El nombre o raz贸n social del destinatario es requerido para F1");
+
+        if (recipientName.Trim().Length > 120)
+            throw new InvalidOperationException("El nombre o raz贸n social del destinatario no puede superar 120 caracteres");
+
         if (string.IsNullOrWhiteSpace(description))
-            throw new InvalidOperationException("La descripci髇 de la operaci髇 es requerida");
+            throw new InvalidOperationException("La descripci贸n de la operaci贸n es requerida");
+
+        if (description.Trim().Length > 500)
+            throw new InvalidOperationException("La descripci贸n de la operaci贸n no puede superar 500 caracteres");
 
         if (totalTaxAmount.Amount > totalAmount.Amount)
-            throw new InvalidOperationException("La cuota de impuesto no puede ser mayor que el importe total");
+            throw new InvalidOperationException(
+                "La cuota de impuesto no puede ser mayor que el importe total");
+
+        if (previousBillingRecordId.HasValue != !string.IsNullOrWhiteSpace(previousRecordHash))
+        {
+            throw new InvalidOperationException(
+                "PreviousBillingRecordId y PreviousRecordHash deben informarse juntos.");
+        }
+
+        var fiscalInvoiceNumber =
+            invoiceIdentifier.Series.Value.Trim() +
+            invoiceIdentifier.Number.Value.Trim();
+
+        if (fiscalInvoiceNumber.Length > 60)
+        {
+            throw new InvalidOperationException(
+                "NumSerieFactura no puede superar 60 caracteres.");
+        }
+
+        var timestamp = string.IsNullOrWhiteSpace(registerTimestamp)
+            ? DateTimeOffset.Now.ToString(
+                "yyyy-MM-ddTHH:mm:sszzz",
+                CultureInfo.InvariantCulture)
+            : registerTimestamp.Trim();
 
         return new BillingRecord
         {
@@ -120,41 +149,44 @@ public class BillingRecord : BaseDomainModel
             IssuerNif = invoiceIdentifier.IssuerNif.Value,
             InvoiceSeries = invoiceIdentifier.Series.Value,
             InvoiceNumber = invoiceIdentifier.Number.Value,
+            FiscalInvoiceNumber = fiscalInvoiceNumber,
             IssueDate = invoiceIdentifier.IssueDate,
-            IssuerName = issuerName,
-            Description = description,
+            IssuerName = issuerName.Trim(),
+            RecipientNif = recipientNif.Trim().ToUpperInvariant(),
+            RecipientName = recipientName.Trim(),
+            Description = description.Trim(),
             TotalAmount = totalAmount.Amount,
             TotalTaxAmount = totalTaxAmount.Amount,
+            RegisterTimestamp = timestamp,
+            PreviousBillingRecordId = previousBillingRecordId,
             PreviousRecordHash = previousRecordHash,
             Status = "Pendiente",
             IsSubmitted = false
         };
     }
 
-    /// <summary>
-    /// Marca el registro como enviado a AEAT.
-    /// </summary>
+    public void MarkAsQueued(Guid correlationId)
+    {
+        if (correlationId == Guid.Empty)
+            throw new InvalidOperationException("CorrelationId no puede estar vac铆o");
+
+        IsSubmitted = true;
+        SubmissionCorrelationId = correlationId;
+        Status = "PendienteEnvio";
+    }
+
     public void MarkAsSubmitted(string aeatSubmissionId)
     {
         if (string.IsNullOrWhiteSpace(aeatSubmissionId))
-            throw new InvalidOperationException("El ID de env韔 de AEAT es requerido");
+            throw new InvalidOperationException("El CSV/ID de env铆o de AEAT es requerido");
 
         IsSubmitted = true;
-        AeatSubmissionId = aeatSubmissionId;
+        AeatSubmissionId = aeatSubmissionId.Trim();
         Status = "Enviado";
     }
 
-    /// <summary>
-    /// Marca el registro como aceptado por AEAT.
-    /// </summary>
-    public void MarkAsAccepted()
-    {
-        Status = "Aceptado";
-    }
+    public void MarkAsAccepted() => Status = "Aceptado";
 
-    /// <summary>
-    /// Marca el registro como rechazado por AEAT.
-    /// </summary>
     public void MarkAsRejected(string reason)
     {
         if (string.IsNullOrWhiteSpace(reason))
@@ -163,20 +195,14 @@ public class BillingRecord : BaseDomainModel
         Status = $"Rechazado: {reason}";
     }
 
-    /// <summary>
-    /// Establece el hash calculado para este registro.
-    /// </summary>
     public void SetComputedHash(string hash)
     {
         if (string.IsNullOrWhiteSpace(hash))
-            throw new InvalidOperationException("El hash no puede estar vac韔");
+            throw new InvalidOperationException("El hash no puede estar vac铆o");
 
         ComputedHash = hash;
     }
 
-    // Navegaci髇
-    /// <summary>
-    /// Historial de intentos de env韔 a AEAT (auditor韆).
-    /// </summary>
-    public virtual ICollection<SubmissionAttempt> SubmissionAttempts { get; set; } = new HashSet<SubmissionAttempt>();
+    public virtual ICollection<SubmissionAttempt> SubmissionAttempts { get; set; } =
+        new HashSet<SubmissionAttempt>();
 }

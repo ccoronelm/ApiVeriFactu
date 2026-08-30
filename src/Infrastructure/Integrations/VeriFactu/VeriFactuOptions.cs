@@ -1,8 +1,8 @@
 namespace gesFactu.Infrastructure.Integrations.VeriFactu;
 
 /// <summary>
-/// Entorno AEAT al que apunta la integraciÛn.
-/// Ref: /VERIFACTU/SistemaFacturacion.wsdl.xml ó service locations
+/// Entorno AEAT al que apunta la integraci√≥n.
+/// Ref: /VERIFACTU/SistemaFacturacion.wsdl.xml ‚Äî service locations
 /// </summary>
 public enum VeriFactuEntorno
 {
@@ -13,7 +13,7 @@ public enum VeriFactuEntorno
     Test,
 
     /// <summary>
-    /// Entorno de producciÛn AEAT.
+    /// Entorno de producci√≥n AEAT.
     /// Endpoint: https://www1.agenciatributaria.gob.es/wlpl/TIKE-CONT/ws/SistemaFacturacion/VerifactuSOAP
     /// </summary>
     Production
@@ -21,8 +21,8 @@ public enum VeriFactuEntorno
 
 /// <summary>
 /// Datos del obligado tributario que emite las facturas.
-/// Es la persona fÌsica/jurÌdica sujeta a la obligaciÛn de facturaciÛn.
-/// Distinto del productor del sistema inform·tico.
+/// Es la persona f√≠sica/jur√≠dica sujeta a la obligaci√≥n de facturaci√≥n.
+/// Distinto del productor del sistema inform√°tico.
 /// Ref: /VERIFACTU/SuministroInformacion.xsd - CabeceraType/ObligadoEmision
 /// </summary>
 public sealed class ObligadoTributarioOptions
@@ -34,15 +34,15 @@ public sealed class ObligadoTributarioOptions
     public string Nif { get; set; } = string.Empty;
 
     /// <summary>
-    /// Nombre o razÛn social del obligado tributario (m·x 120 chars).
+    /// Nombre o raz√≥n social del obligado tributario (m√°x 120 chars).
     /// Obtener desde User Secrets en Development: VeriFactu:Taxpayer:Name
     /// </summary>
     public string Name { get; set; } = string.Empty;
 }
 
 /// <summary>
-/// Opciones de certificado X.509 para autenticaciÛn mTLS con AEAT.
-/// NOTA: La autenticaciÛn es mTLS (certificado en capa HTTPS).
+/// Opciones de certificado X.509 para autenticaci√≥n mTLS con AEAT.
+/// NOTA: La autenticaci√≥n es mTLS (certificado en capa HTTPS).
 /// VERI*FACTU en modalidad sistema verificable NO requiere firma XAdES del XML.
 /// El campo ds:Signature en el XSD es opcional (minOccurs=0).
 /// Ref: /VERIFACTU/SistemaFacturacion.wsdl.xml
@@ -50,58 +50,58 @@ public sealed class ObligadoTributarioOptions
 public sealed class CertificateOptions
 {
     /// <summary>
-    /// Thumbprint del certificado en el almacÈn Windows (CurrentUser/My).
+    /// Thumbprint del certificado en el almac√©n Windows (CurrentUser/My).
     /// Obtener desde User Secrets: VeriFactu:Certificate:Thumbprint
     /// Preferible para Development sobre PFX en disco.
     /// </summary>
     public string? Thumbprint { get; set; }
 
     /// <summary>
-    /// Ruta del archivo PFX/P12 (alternativa al almacÈn Windows).
+    /// Ruta del archivo PFX/P12 (alternativa al almac√©n Windows).
     /// </summary>
     public string? PfxPath { get; set; }
 
     /// <summary>
-    /// ContraseÒa del PFX. Usar User Secrets, nunca hardcodear.
+    /// Contrase√±a del PFX. Usar User Secrets, nunca hardcodear.
     /// </summary>
     public string? PfxPassword { get; set; }
 }
 
 /// <summary>
-/// Datos del sistema inform·tico (productor del software).
+/// Datos del sistema inform√°tico (productor del software).
 /// Es la entidad que desarrolla/mantiene gesFactu. Distinta del obligado tributario.
 /// Ref: /VERIFACTU/SuministroInformacion.xsd - SistemaInformaticoType
-/// Todos los campos son obligatorios seg˙n el XSD.
+/// Todos los campos son obligatorios seg√∫n el XSD.
 /// </summary>
 public sealed class SistemaInformaticoOptions
 {
     /// <summary>
-    /// Nombre o razÛn social del productor del sistema inform·tico (m·x 120 chars). Obligatorio.
+    /// Nombre o raz√≥n social del productor del sistema inform√°tico (m√°x 120 chars). Obligatorio.
     /// </summary>
     public string NombreRazon { get; set; } = string.Empty;
 
     /// <summary>
-    /// NIF del productor del sistema inform·tico (9 chars). Obligatorio si se usa NIF.
+    /// NIF del productor del sistema inform√°tico (9 chars). Obligatorio si se usa NIF.
     /// </summary>
     public string Nif { get; set; } = string.Empty;
 
     /// <summary>
-    /// Nombre comercial del sistema inform·tico (m·x 30 chars). Obligatorio.
+    /// Nombre comercial del sistema inform√°tico (m√°x 30 chars). Obligatorio.
     /// </summary>
     public string NombreSistemaInformatico { get; set; } = "gesFactu";
 
     /// <summary>
-    /// Identificador del sistema inform·tico (m·x 2 chars). Obligatorio.
+    /// Identificador del sistema inform√°tico (m√°x 2 chars). Obligatorio.
     /// </summary>
     public string IdSistemaInformatico { get; set; } = string.Empty;
 
     /// <summary>
-    /// VersiÛn del sistema inform·tico (m·x 50 chars). Obligatorio.
+    /// Versi√≥n del sistema inform√°tico (m√°x 50 chars). Obligatorio.
     /// </summary>
     public string Version { get; set; } = "1.0";
 
     /// <summary>
-    /// N˙mero de instalaciÛn (m·x 100 chars). Obligatorio.
+    /// N√∫mero de instalaci√≥n (m√°x 100 chars). Obligatorio.
     /// </summary>
     public string NumeroInstalacion { get; set; } = string.Empty;
 
@@ -112,19 +112,19 @@ public sealed class SistemaInformaticoOptions
     public string TipoUsoPosibleSoloVerifactu { get; set; } = "S";
 
     /// <summary>
-    /// S si el sistema puede ser usado por m˙ltiples obligados tributarios. Obligatorio.
+    /// S si el sistema puede ser usado por m√∫ltiples obligados tributarios. Obligatorio.
     /// </summary>
     public string TipoUsoPosibleMultiOT { get; set; } = "N";
 
     /// <summary>
-    /// S si actualmente el sistema es usado por m˙ltiples obligados tributarios. Obligatorio.
+    /// S si actualmente el sistema es usado por m√∫ltiples obligados tributarios. Obligatorio.
     /// </summary>
     public string IndicadorMultiplesOT { get; set; } = "N";
 }
 
 /// <summary>
-/// ConfiguraciÛn raÌz para la integraciÛn AEAT VERI*FACTU.
-/// Se carga desde appsettings.json bajo la secciÛn "VeriFactu".
+/// Configuraci√≥n ra√≠z para la integraci√≥n AEAT VERI*FACTU.
+/// Se carga desde appsettings.json bajo la secci√≥n "VeriFactu".
 /// Los secretos (NIF, Thumbprint, PfxPassword) se obtienen de User Secrets en Development.
 /// </summary>
 public sealed class VeriFactuOptions
@@ -133,12 +133,18 @@ public sealed class VeriFactuOptions
 
     /// <summary>
     /// Entorno AEAT: Test o Production.
-    /// En entorno ASP.NET Core Development solo se permite Test (validaciÛn fail-fast al startup).
+    /// En entorno ASP.NET Core Development solo se permite Test (validaci√≥n fail-fast al startup).
     /// </summary>
     public VeriFactuEntorno Environment { get; set; } = VeriFactuEntorno.Test;
 
     /// <summary>
-    /// Modo de cliente: "Stub" (tests unitarios), "SoapClient" (integraciÛn real con AEAT).
+    /// Cerrojo expl√≠cito para impedir apuntar accidentalmente a producci√≥n.
+    /// Debe permanecer false salvo activaci√≥n deliberada en un despliegue productivo.
+    /// </summary>
+    public bool AllowProduction { get; set; } = false;
+
+    /// <summary>
+    /// Modo de cliente: "Stub" (tests unitarios), "SoapClient" (integraci√≥n real con AEAT).
     /// </summary>
     public string ClientMode { get; set; } = "Stub";
 
@@ -148,7 +154,7 @@ public sealed class VeriFactuOptions
     public int TimeoutSeconds { get; set; } = 30;
 
     /// <summary>
-    /// N˙mero m·ximo de reintentos para errores transitorios.
+    /// N√∫mero m√°ximo de reintentos para errores transitorios.
     /// </summary>
     public int MaxRetries { get; set; } = 3;
 
@@ -163,12 +169,12 @@ public sealed class VeriFactuOptions
     public ObligadoTributarioOptions Taxpayer { get; set; } = new();
 
     /// <summary>
-    /// ConfiguraciÛn del certificado X.509 para autenticaciÛn mTLS.
+    /// Configuraci√≥n del certificado X.509 para autenticaci√≥n mTLS.
     /// </summary>
     public CertificateOptions Certificate { get; set; } = new();
 
     /// <summary>
-    /// Datos del sistema inform·tico (productor del software).
+    /// Datos del sistema inform√°tico (productor del software).
     /// </summary>
     public SistemaInformaticoOptions SistemaInformatico { get; set; } = new();
 
@@ -181,7 +187,7 @@ public sealed class VeriFactuOptions
     public const string EndpointProduction = "https://www1.agenciatributaria.gob.es/wlpl/TIKE-CONT/ws/SistemaFacturacion/VerifactuSOAP";
 
     /// <summary>
-    /// Devuelve el endpoint correcto seg˙n el entorno configurado.
+    /// Devuelve el endpoint correcto seg√∫n el entorno configurado.
     /// </summary>
     public string GetEndpoint() => Environment == VeriFactuEntorno.Production
         ? EndpointProduction

@@ -1,24 +1,16 @@
-using gesFactu.Domain.Entities;
-
 namespace gesFactu.Application.Common.Abstractions;
 
 /// <summary>
-/// Puerto para persistencia de intentos de env韔 a AEAT (auditor韆).
+/// Puerto de auditor铆a persistente de cada intento de comunicaci贸n con AEAT.
 /// </summary>
 public interface ISubmissionAttemptStore
 {
-    /// <summary>
-    /// Registra un nuevo intento de env韔.
-    /// </summary>
     Task<SubmissionAttemptDto> CreateAsync(
         int billingRecordId,
         int attemptNumber,
         string requestPayload,
         CancellationToken cancellationToken);
 
-    /// <summary>
-    /// Marca un intento como exitoso.
-    /// </summary>
     Task MarkAsSuccessAsync(
         Guid attemptId,
         string responseCode,
@@ -28,9 +20,6 @@ public interface ISubmissionAttemptStore
         int durationMilliseconds,
         CancellationToken cancellationToken);
 
-    /// <summary>
-    /// Marca un intento como fallo permanente.
-    /// </summary>
     Task MarkAsPermanentFailureAsync(
         Guid attemptId,
         string responseCode,
@@ -40,9 +29,6 @@ public interface ISubmissionAttemptStore
         int durationMilliseconds,
         CancellationToken cancellationToken);
 
-    /// <summary>
-    /// Marca un intento como fallo transitorio.
-    /// </summary>
     Task MarkAsTransientFailureAsync(
         Guid attemptId,
         string responseCode,
@@ -51,39 +37,36 @@ public interface ISubmissionAttemptStore
         int durationMilliseconds,
         CancellationToken cancellationToken);
 
-    /// <summary>
-    /// Obtiene todos los intentos de un registro.
-    /// </summary>
+    Task MarkAsCommunicationErrorAsync(
+        Guid attemptId,
+        string responseCode,
+        string? responseDescription,
+        string? responsePayload,
+        string? notes,
+        int durationMilliseconds,
+        CancellationToken cancellationToken);
+
     Task<List<SubmissionAttemptDto>> GetByBillingRecordIdAsync(
         int billingRecordId,
         CancellationToken cancellationToken);
 
-    /// <summary>
-    /// Obtiene el 鷏timo intento de un registro.
-    /// </summary>
     Task<SubmissionAttemptDto?> GetLastAttemptAsync(
         int billingRecordId,
         CancellationToken cancellationToken);
 
-    /// <summary>
-    /// Obtiene los intentos fallidos de un registro.
-    /// </summary>
     Task<List<SubmissionAttemptDto>> GetFailedAttemptsAsync(
         int billingRecordId,
         CancellationToken cancellationToken);
 }
 
-/// <summary>
-/// DTO de un intento de env韔 (agn髎tico a Entity Framework).
-/// </summary>
 public record SubmissionAttemptDto(
     Guid Id,
-    int N鷐ero,
+    int N煤mero,
     string Estado,
-    DateTime FechaEnv韔,
+    DateTime FechaEnv铆o,
     DateTime? FechaRespuesta,
-    string? C骴igoRespuesta,
-    string? Descripci髇Respuesta,
-    int? Duraci髇Ms,
-    string? SubmissionIdAEAT
-);
+    string? C贸digoRespuesta,
+    string? Descripci贸nRespuesta,
+    int? Duraci贸nMs,
+    string? SubmissionIdAEAT,
+    string? Notas);

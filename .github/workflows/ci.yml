@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - develop
+  pull_request:
+    branches:
+      - develop
+      - master
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+
+    services:
+      sqlserver:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: "Y"
+          MSSQL_SA_PASSWORD: "GesFactu_CI!2026_Strong"
+        ports:
+          - 1433:1433
+
+    env:
+      GESFACTU_TEST_SQLSERVER: "Server=localhost,1433;User Id=sa;Password=GesFactu_CI!2026_Strong;TrustServerCertificate=True;Encrypt=False"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.404"
+
+      - name: Restore dotnet tools
+        run: dotnet tool restore
+
+      - name: Restore application
+        run: dotnet restore gesFactuSolucion.sln
+
+      - name: Restore tests
+        run: dotnet restore src/Infrastructure.Tests/gesFactu.Infrastructure.Tests.csproj
+
+      - name: Build application
+        run: dotnet build gesFactuSolucion.sln --configuration Release --no-restore
+
+      - name: Validate EF migrations
+        run: >
+          dotnet ef database update
+          --project src/Infrastructure/gesFactu.Infrastructure.csproj
+          --startup-project src/Api/gesFactu.Api/gesFactu.Api.csproj
+          --connection "Server=localhost,1433;Database=gesFactuMigrationCi;User Id=sa;Password=GesFactu_CI!2026_Strong;TrustServerCertificate=True;Encrypt=False"
+
+      - name: Run infrastructure tests
+        run: dotnet test src/Infrastructure.Tests/gesFactu.Infrastructure.Tests.csproj --configuration Release --no-restore --verbosity normal

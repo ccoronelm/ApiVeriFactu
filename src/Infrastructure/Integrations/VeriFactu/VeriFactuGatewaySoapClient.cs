@@ -1,4 +1,5 @@
-using System.Net.Http.Headers;
+using System.Globalization;
+using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Xml;
@@ -11,291 +12,482 @@ using Microsoft.Extensions.Options;
 namespace gesFactu.Infrastructure.Integrations.VeriFactu;
 
 /// <summary>
-/// Cliente SOAP real para comunicación con AEAT VERI*FACTU.
-///
-/// Implementa:
-/// - Construcción del SOAP envelope con namespaces oficiales (document/literal)
-/// - Parser real de RespuestaRegFactuSistemaFacturacion
-/// - Detección y lanzamiento de SOAP Fault como excepción diferenciada
-/// - Clasificación de errores transitorios vs permanentes
-///
-/// Ref: /VERIFACTU/SistemaFacturacion.wsdl.xml
-/// Ref: /VERIFACTU/SuministroLR.xsd.xml
-/// Ref: /VERIFACTU/RespuestaSuministro.xsd.xml
+/// Cliente SOAP 1.1 real para AEAT VERI*FACTU.
 /// </summary>
 public sealed class VeriFactuGatewaySoapClient : IVeriFactuGateway
 {
     private readonly HttpClient _httpClient;
+    private readonly IXmlSchemaValidator _xmlSchemaValidator;
     private readonly ILogger<VeriFactuGatewaySoapClient> _logger;
     private readonly VeriFactuOptions _options;
 
-    // Namespaces oficiales — Ref: SistemaFacturacion.wsdl.xml y RespuestaSuministro.xsd.xml
-    private static readonly XNamespace NsSoap   = "http://schemas.xmlsoap.org/soap/envelope/";
-    private static readonly XNamespace NsSf     = RegistroAltaXmlBuilder.NsSf;
-    private static readonly XNamespace NsSfLr   = RegistroAltaXmlBuilder.NsSfLr;
-    private static readonly XNamespace NsResp   =
+    private static readonly XNamespace NsSoap =
+        "http://schemas.xmlsoap.org/soap/envelope/";
+
+    private static readonly XNamespace NsSf =
+        RegistroAltaXmlBuilder.NsSf;
+
+    private static readonly XNamespace NsSfLr =
+        RegistroAltaXmlBuilder.NsSfLr;
+
+    private static readonly XNamespace NsResp =
         "https://www2.agenciatributaria.gob.es/static_files/common/internet/dep/aplicaciones/es/aeat/tike/cont/ws/RespuestaSuministro.xsd";
 
     public VeriFactuGatewaySoapClient(
         HttpClient httpClient,
         IOptions<VeriFactuOptions> options,
+        IXmlSchemaValidator xmlSchemaValidator,
         ILogger<VeriFactuGatewaySoapClient> logger)
     {
         _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
-        _options    = options?.Value ?? throw new ArgumentNullException(nameof(options));
-        _logger     = logger ?? throw new ArgumentNullException(nameof(logger));
+        _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
+        _xmlSchemaValidator = xmlSchemaValidator ??
+            throw new ArgumentNullException(nameof(xmlSchemaValidator));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
-    // ?? IVeriFactuGateway ????????????????????????????????????????????????????
-
-    /// <summary>
-    /// Envía un RegistroAlta a AEAT (RegFactuSistemaFacturacion).
-    /// El XML del documento ya viene construido en SignedXmlContent.
-    /// Ref: /VERIFACTU/SistemaFacturacion.wsdl.xml — operación RegFactuSistemaFacturacion
-    /// </summary>
     public async Task<VeriFactuSubmissionResult> SubmitBillingRecordAsync(
         VeriFactuSubmissionRequest request,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        var endpoint = _options.GetEndpoint();
-        _logger.LogInformation(
-            "Enviando RegistroAlta a AEAT [{Entorno}] para NIF {Nif}",
-            _options.Environment, request.TaxpayerNif);
+        if (string.IsNullOrWhiteSpace(request.SignedXmlContent))
+            throw new ArgumentException("El XML RegistroAlta no puede estar vacÃ­o.", nameof(request));
 
-        var soapDoc  = BuildRegFactuSoapEnvelope(request.SignedXmlContent);
-        var respDoc  = await SendSoapAsync(endpoint, soapDoc, cancellationToken);
-        return ParseSubmissionResponse(respDoc);
+        var endpoint = _options.GetEndpoint();
+
+        _logger.LogInformation(
+            "Enviando RegistroAlta a AEAT [{Environment}] para NIF {TaxpayerNif}",
+            _options.Environment,
+            request.TaxpayerNif);
+
+        var envelope = BuildRegFactuSoapEnvelope(request.SignedXmlContent);
+        var response = await SendSoapAsync(endpoint, envelope, cancellationToken);
+
+        var responseElement = response.Document
+            .Descendants(NsResp + "RespuestaRegFactuSistemaFacturacion")
+            .FirstOrDefault()
+            ?? throw new VeriFactuCommunicationException(
+                "La respuesta SOAP no contiene RespuestaRegFactuSistemaFacturacion.",
+                isTransient: false);
+
+        // La respuesta tambiÃ©n se valida contra el XSD oficial antes de mapearla.
+        var validation = await _xmlSchemaValidator.ValidateAsync(
+            responseElement.ToString(SaveOptions.DisableFormatting),
+            VeriFactuXmlSchemaType.SubmissionResponse,
+            cancellationToken);
+
+        if (!validation.IsValid)
+        {
+            throw new VeriFactuCommunicationException(
+                "La respuesta AEAT no cumple el XSD oficial: " +
+                string.Join(" | ", validation.Errors.Select(e => e.Message)),
+                isTransient: false);
+        }
+
+        return ParseSubmissionResponse(
+            responseElement,
+            response.RawBody);
     }
 
     public Task<VeriFactuQueryResult> QueryBillingRecordAsync(
         VeriFactuQueryRequest request,
         CancellationToken cancellationToken = default)
         => throw new NotImplementedException(
-               "Consulta no implementada en esta fase. Solo se soporta RegistroAlta.");
+            "Consulta no implementada en esta fase. Solo se soporta RegistroAlta.");
 
     public Task<VeriFactuCancellationResult> CancelBillingRecordAsync(
         VeriFactuCancellationRequest request,
         CancellationToken cancellationToken = default)
         => throw new NotImplementedException(
-               "Anulacion no implementada en esta fase. Solo se soporta RegistroAlta.");
+            "AnulaciÃ³n no implementada en esta fase. Solo se soporta RegistroAlta.");
 
-    // ?? Construcción SOAP envelope ???????????????????????????????????????????
-
-    /// <summary>
-    /// Construye el SOAP envelope para RegFactuSistemaFacturacion.
-    /// El elemento RegFactuSistemaFacturacion (SuministroLR.xsd) se inserta directamente en Body
-    /// con uso literal (document/literal) según el WSDL.
-    /// Ref: /VERIFACTU/SistemaFacturacion.wsdl.xml
-    /// </summary>
     private static XDocument BuildRegFactuSoapEnvelope(string regFactuXml)
     {
-        // Parsear el XML ya construido (no concatenación de strings)
-        var regFactuElement = XElement.Parse(regFactuXml);
+        XElement regFactuElement;
+
+        try
+        {
+            regFactuElement = XElement.Parse(
+                regFactuXml,
+                LoadOptions.PreserveWhitespace);
+        }
+        catch (XmlException ex)
+        {
+            throw new VeriFactuCommunicationException(
+                "El XML RegistroAlta proporcionado al gateway no estÃ¡ bien formado.",
+                ex,
+                isTransient: false);
+        }
+
+        if (regFactuElement.Name != NsSfLr + "RegFactuSistemaFacturacion")
+        {
+            throw new VeriFactuCommunicationException(
+                "El XML a remitir no tiene como raÃ­z sfLR:RegFactuSistemaFacturacion.",
+                isTransient: false);
+        }
 
         return new XDocument(
             new XDeclaration("1.0", "UTF-8", null),
-            new XElement(NsSoap + "Envelope",
+            new XElement(
+                NsSoap + "Envelope",
                 new XAttribute(XNamespace.Xmlns + "soapenv", NsSoap.NamespaceName),
-                new XAttribute(XNamespace.Xmlns + "sfLR",    NsSfLr.NamespaceName),
-                new XAttribute(XNamespace.Xmlns + "sf",      NsSf.NamespaceName),
+                new XAttribute(XNamespace.Xmlns + "sfLR", NsSfLr.NamespaceName),
+                new XAttribute(XNamespace.Xmlns + "sf", NsSf.NamespaceName),
                 new XElement(NsSoap + "Header"),
                 new XElement(NsSoap + "Body", regFactuElement)));
     }
 
-    // ?? HTTP ?????????????????????????????????????????????????????????????????
-
-    private async Task<XDocument> SendSoapAsync(
+    private async Task<SoapResponse> SendSoapAsync(
         string endpoint,
         XDocument soapEnvelope,
         CancellationToken cancellationToken)
     {
-        var xmlBytes = Encoding.UTF8.GetBytes(
-            soapEnvelope.Declaration?.ToString() + soapEnvelope.ToString());
-        using var content = new ByteArrayContent(xmlBytes);
-        content.Headers.ContentType = new MediaTypeHeaderValue("text/xml") { CharSet = "UTF-8" };
-        // SOAPAction vacío según WSDL: <soap:operation soapAction=""/>
-        content.Headers.Add("SOAPAction", "\"\"");
+        var xml = soapEnvelope.Declaration?.ToString() + soapEnvelope.ToString(SaveOptions.DisableFormatting);
+        var xmlBytes = Encoding.UTF8.GetBytes(xml);
 
-        _logger.LogDebug("POST SOAP a {Endpoint} ({Bytes} bytes)", endpoint, xmlBytes.Length);
+        using var request = new HttpRequestMessage(HttpMethod.Post, endpoint);
+        request.Content = new ByteArrayContent(xmlBytes);
+        request.Content.Headers.ContentType =
+            new MediaTypeHeaderValue("text/xml") { CharSet = "UTF-8" };
+
+        // WSDL oficial: soapAction=""
+        request.Headers.TryAddWithoutValidation("SOAPAction", "\"\"");
 
         HttpResponseMessage response;
+
         try
         {
-            response = await _httpClient.PostAsync(endpoint, content, cancellationToken);
+            response = await _httpClient.SendAsync(
+                request,
+                HttpCompletionOption.ResponseContentRead,
+                cancellationToken);
         }
         catch (TaskCanceledException ex) when (!cancellationToken.IsCancellationRequested)
         {
             throw new VeriFactuCommunicationException(
-                "Timeout al conectar con AEAT.", ex, isTransient: true);
+                "Timeout al conectar con AEAT.",
+                ex,
+                isTransient: true);
         }
         catch (HttpRequestException ex)
         {
             throw new VeriFactuCommunicationException(
-                $"Error de red al conectar con AEAT: {ex.Message}", ex, isTransient: true);
+                $"Error de red al conectar con AEAT: {ex.Message}",
+                ex,
+                isTransient: true);
         }
 
-        var body = await response.Content.ReadAsStringAsync(cancellationToken);
-        _logger.LogDebug("Respuesta AEAT: HTTP {StatusCode}", (int)response.StatusCode);
-
-        // Intentar parsear siempre: incluso un error HTTP puede traer SOAP Fault
-        XDocument? doc = null;
-        try { doc = XDocument.Parse(body); }
-        catch (XmlException) { /* body no es XML */ }
-
-        // SOAP Fault tiene prioridad sobre el código HTTP
-        if (doc != null)
+        using (response)
         {
-            var fault = doc.Descendants(NsSoap + "Fault").FirstOrDefault();
-            if (fault != null)
-                throw new VeriFactuSoapFaultException(ExtractFaultMessage(fault));
+            var body = await response.Content.ReadAsStringAsync(cancellationToken);
+
+            XDocument? document = null;
+            try
+            {
+                document = XDocument.Parse(body, LoadOptions.PreserveWhitespace);
+            }
+            catch (XmlException)
+            {
+                // Se clasifica despuÃ©s segÃºn el cÃ³digo HTTP.
+            }
+
+            if (document is not null)
+            {
+                var fault = document
+                    .Descendants(NsSoap + "Fault")
+                    .FirstOrDefault();
+
+                if (fault is not null)
+                {
+                    throw new VeriFactuSoapFaultException(
+                        ExtractFaultMessage(fault),
+                        body);
+                }
+            }
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var transient =
+                    response.StatusCode == HttpStatusCode.RequestTimeout ||
+                    (int)response.StatusCode == 429 ||
+                    (int)response.StatusCode >= 500;
+
+                throw new VeriFactuCommunicationException(
+                    $"AEAT devolviÃ³ HTTP {(int)response.StatusCode}. {Truncate(body, 500)}",
+                    isTransient: transient);
+            }
+
+            if (document is null)
+            {
+                throw new VeriFactuCommunicationException(
+                    "La respuesta HTTP 2xx de AEAT no contiene XML vÃ¡lido.",
+                    isTransient: false);
+            }
+
+            return new SoapResponse(document, body);
         }
-
-        if (!response.IsSuccessStatusCode)
-        {
-            var isTransient = (int)response.StatusCode >= 500;
-            throw new VeriFactuCommunicationException(
-                $"AEAT devolvio HTTP {(int)response.StatusCode}. {Truncate(body, 500)}",
-                isTransient: isTransient);
-        }
-
-        if (doc == null)
-            throw new VeriFactuCommunicationException(
-                "La respuesta de AEAT no es XML valido.", isTransient: false);
-
-        return doc;
     }
 
-    // ?? Parsing de respuesta ?????????????????????????????????????????????????
-
-    /// <summary>
-    /// Parsea RespuestaRegFactuSistemaFacturacion conforme a RespuestaSuministro.xsd.
-    /// Ref: /VERIFACTU/RespuestaSuministro.xsd.xml
-    /// Campos mapeados: CSV, TiempoEsperaEnvio, EstadoEnvio, RespuestaLinea[]
-    /// </summary>
-    private VeriFactuSubmissionResult ParseSubmissionResponse(XDocument doc)
+    private VeriFactuSubmissionResult ParseSubmissionResponse(
+        XElement response,
+        string rawSoap)
     {
-        // Buscar dentro del Body SOAP
-        var respuesta = doc
-            .Descendants(NsResp + "RespuestaRegFactuSistemaFacturacion")
-            .FirstOrDefault()
+        var csv = NullIfWhiteSpace(response.Element(NsResp + "CSV")?.Value);
+        var tiempoEspera = NullIfWhiteSpace(
+            response.Element(NsResp + "TiempoEsperaEnvio")?.Value);
+
+        var estadoEnvio = NullIfWhiteSpace(
+            response.Element(NsResp + "EstadoEnvio")?.Value)
             ?? throw new VeriFactuCommunicationException(
-                "No se encontro RespuestaRegFactuSistemaFacturacion en la respuesta SOAP.",
+                "Respuesta AEAT sin EstadoEnvio.",
                 isTransient: false);
 
-        // CSV: identificador asignado por AEAT (solo cuando no hay rechazo total)
-        var csv = respuesta.Element(NsResp + "CSV")?.Value;
-
-        var tiempoEspera = respuesta.Element(NsResp + "TiempoEsperaEnvio")?.Value;
-
-        // EstadoEnvio: "Correcto" | "ParcialmenteCorrecto" | "Incorrecto"
-        var estadoEnvio = respuesta.Element(NsResp + "EstadoEnvio")?.Value ?? "Incorrecto";
-
-        // RespuestaLinea — detalle por cada registro enviado
-        var lineas = respuesta
+        var lineas = response
             .Elements(NsResp + "RespuestaLinea")
             .Select(ParseRespuestaLinea)
             .ToList();
 
-        var isAccepted   = estadoEnvio is "Correcto" or "ParcialmenteCorrecto";
-        var descripcion  = BuildDescripcion(estadoEnvio, lineas);
-        var responseCode = ClasificarEstado(estadoEnvio, lineas);
+        if (lineas.Count > 1)
+        {
+            throw new VeriFactuCommunicationException(
+                $"gesFactu remitiÃ³ un Ãºnico registro pero AEAT devolviÃ³ {lineas.Count} RespuestaLinea.",
+                isTransient: false);
+        }
+
+        var linea = lineas.SingleOrDefault();
+
+        if (estadoEnvio is "Correcto" or "ParcialmenteCorrecto" && linea is null)
+        {
+            throw new VeriFactuCommunicationException(
+                "AEAT informÃ³ un envÃ­o procesado sin devolver RespuestaLinea para el registro remitido.",
+                isTransient: false);
+        }
+
+        var isAccepted =
+            linea?.EstadoRegistro is "Correcto" or "AceptadoConErrores";
+
+        if (isAccepted && csv is null)
+        {
+            throw new VeriFactuCommunicationException(
+                "AEAT aceptÃ³ el registro pero la respuesta no contiene el CSV exigido para un envÃ­o no rechazado.",
+                isTransient: false);
+        }
+
+        var errorCode = linea?.CodigoError;
+        var isDuplicate = errorCode == "3000";
+
+        var responseCode = ClassifyResponse(
+            isAccepted,
+            errorCode);
+
+        var presentationTimestamp = ParsePresentationTimestamp(response);
+
+        var description = BuildDescription(
+            estadoEnvio,
+            linea);
+
+        var extra = new List<string>();
+
+        if (tiempoEspera is not null)
+            extra.Add($"TiempoEsperaEnvio={tiempoEspera}");
+
+        if (linea?.DuplicateRecordStatus is not null)
+            extra.Add($"EstadoRegistroDuplicado={linea.DuplicateRecordStatus}");
+
+        if (linea?.DuplicateRequestId is not null)
+            extra.Add($"IdPeticionRegistroDuplicado={linea.DuplicateRequestId}");
 
         _logger.LogInformation(
-            "Respuesta AEAT: EstadoEnvio={Estado}, CSV={Csv}, Lineas={Count}",
-            estadoEnvio, csv ?? "(sin CSV)", lineas.Count);
+            "Respuesta AEAT procesada: EstadoEnvio={EstadoEnvio}, EstadoRegistro={EstadoRegistro}, CSV={Csv}, CodigoError={CodigoError}",
+            estadoEnvio,
+            linea?.EstadoRegistro ?? "(sin lÃ­nea)",
+            csv ?? "(sin CSV)",
+            errorCode ?? "(sin error)");
 
         return new VeriFactuSubmissionResult
         {
-            // CSV es el identificador real del envío asignado por AEAT
-            SubmissionId      = csv ?? $"SIN-CSV-{DateTime.UtcNow:yyyyMMddHHmmss}",
-            IsAccepted        = isAccepted,
-            ResponseCode      = responseCode,
-            StatusCode        = estadoEnvio,
-            StatusDescription = descripcion,
-            AdditionalDetails = tiempoEspera != null ? $"TiempoEspera={tiempoEspera}s" : null,
-            ServerTimestamp   = DateTime.UtcNow
+            SubmissionId = csv,
+            IsAccepted = isAccepted,
+            ResponseCode = responseCode,
+            StatusCode = estadoEnvio,
+            RecordStatus = linea?.EstadoRegistro,
+            StatusDescription = description,
+            ErrorCode = errorCode,
+            IsDuplicate = isDuplicate,
+            DuplicateRecordStatus = linea?.DuplicateRecordStatus,
+            DuplicateRequestId = linea?.DuplicateRequestId,
+            AdditionalDetails = extra.Count == 0
+                ? null
+                : string.Join(" | ", extra),
+            ServerTimestamp = presentationTimestamp,
+            RawResponsePayload = rawSoap
         };
     }
 
-    private static RespuestaLineaDto ParseRespuestaLinea(XElement linea)
+    private static RespuestaLinea ParseRespuestaLinea(XElement line)
     {
-        var idFactura       = linea.Element(NsResp + "IDFactura");
-        var numSerie        = idFactura?.Element(NsSf + "NumSerieFactura")?.Value ?? string.Empty;
-        var estadoRegistro  = linea.Element(NsResp + "EstadoRegistro")?.Value ?? string.Empty;
-        var codigoError     = linea.Element(NsResp + "CodigoErrorRegistro")?.Value;
-        var descripcionError = linea.Element(NsResp + "DescripcionErrorRegistro")?.Value;
-        return new RespuestaLineaDto(numSerie, estadoRegistro, codigoError, descripcionError);
+        var idFactura = line.Element(NsResp + "IDFactura");
+
+        var numSerie = NullIfWhiteSpace(
+            idFactura?.Element(NsSf + "NumSerieFactura")?.Value);
+
+        var estadoRegistro = NullIfWhiteSpace(
+            line.Element(NsResp + "EstadoRegistro")?.Value)
+            ?? throw new VeriFactuCommunicationException(
+                "RespuestaLinea sin EstadoRegistro.",
+                isTransient: false);
+
+        var codigoError = NullIfWhiteSpace(
+            line.Element(NsResp + "CodigoErrorRegistro")?.Value);
+
+        var descripcionError = NullIfWhiteSpace(
+            line.Element(NsResp + "DescripcionErrorRegistro")?.Value);
+
+        var duplicate = line.Element(NsResp + "RegistroDuplicado");
+
+        var duplicateStatus = NullIfWhiteSpace(
+            duplicate?.Element(NsSf + "EstadoRegistroDuplicado")?.Value);
+
+        var duplicateRequestId = NullIfWhiteSpace(
+            duplicate?.Element(NsSf + "IdPeticionRegistroDuplicado")?.Value);
+
+        return new RespuestaLinea(
+            numSerie,
+            estadoRegistro,
+            codigoError,
+            descripcionError,
+            duplicateStatus,
+            duplicateRequestId);
     }
 
-    private static string BuildDescripcion(string estadoEnvio, List<RespuestaLineaDto> lineas)
+    private static DateTime? ParsePresentationTimestamp(XElement response)
     {
-        var sb = new StringBuilder($"EstadoEnvio: {estadoEnvio}");
-        foreach (var l in lineas)
+        var raw = response
+            .Element(NsResp + "DatosPresentacion")
+            ?.Element(NsSf + "TimestampPresentacion")
+            ?.Value;
+
+        if (string.IsNullOrWhiteSpace(raw))
+            return null;
+
+        if (DateTimeOffset.TryParse(
+                raw,
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.RoundtripKind,
+                out var timestamp))
         {
-            sb.Append($" | {l.NumSerie}: {l.EstadoRegistro}");
-            if (!string.IsNullOrWhiteSpace(l.CodigoError))
-                sb.Append($" (Cod:{l.CodigoError} {l.DescripcionError})");
+            return timestamp.UtcDateTime;
         }
-        return sb.ToString();
+
+        return null;
     }
 
-    /// <summary>
-    /// Clasifica el estado AEAT para decisiones de retry.
-    /// Errores 4108/4112 = certificado/autenticación ? no reintentable.
-    /// Ref: /VERIFACTU/errores.properties.txt
-    /// </summary>
-    private static AeatResponseCode ClasificarEstado(
-        string estadoEnvio, List<RespuestaLineaDto> lineas)
-        => estadoEnvio switch
+    private static AeatResponseCode ClassifyResponse(
+        bool accepted,
+        string? errorCode)
+    {
+        if (accepted)
+            return AeatResponseCode.Success;
+
+        return errorCode switch
         {
-            "Correcto" or "ParcialmenteCorrecto" => AeatResponseCode.Success,
-            "Incorrecto" when lineas.Any(l => l.CodigoError is "4108" or "4112")
-                => AeatResponseCode.AuthenticationError,
-            "Incorrecto" => AeatResponseCode.BusinessRejection,
-            _ => AeatResponseCode.Unknown
+            "3000" => AeatResponseCode.DuplicateError,
+            "4108" or "4112" => AeatResponseCode.AuthenticationError,
+            "4134" or "4139" or "4141" => AeatResponseCode.PermanentError,
+            null => AeatResponseCode.BusinessRejection,
+            _ => AeatResponseCode.BusinessRejection
         };
+    }
+
+    private static string BuildDescription(
+        string estadoEnvio,
+        RespuestaLinea? linea)
+    {
+        var builder = new StringBuilder();
+        builder.Append($"EstadoEnvio: {estadoEnvio}");
+
+        if (linea is null)
+            return builder.ToString();
+
+        builder.Append($" | {linea.NumSerie ?? "(sin NumSerieFactura)"}: {linea.EstadoRegistro}");
+
+        if (linea.CodigoError is not null)
+        {
+            builder.Append($" | Error {linea.CodigoError}");
+
+            if (linea.DescripcionError is not null)
+                builder.Append($": {linea.DescripcionError}");
+        }
+
+        return builder.ToString();
+    }
 
     private static string ExtractFaultMessage(XElement fault)
     {
-        var code   = fault.Element("faultcode")?.Value   ?? "UNKNOWN";
-        var detail = fault.Element("faultstring")?.Value ?? "SOAP Fault sin detalle";
-        return $"SOAP Fault [{code}]: {detail}";
+        var code = fault.Element("faultcode")?.Value ?? "UNKNOWN";
+        var message = fault.Element("faultstring")?.Value ?? "SOAP Fault sin detalle";
+
+        return $"SOAP Fault [{code}]: {message}";
     }
 
-    private static string Truncate(string s, int max)
-        => s.Length <= max ? s : s[..max] + "...";
+    private static string? NullIfWhiteSpace(string? value)
+        => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
-    private sealed record RespuestaLineaDto(
-        string  NumSerie,
-        string  EstadoRegistro,
+    private static string Truncate(string value, int max)
+        => value.Length <= max ? value : value[..max] + "...";
+
+    private sealed record SoapResponse(
+        XDocument Document,
+        string RawBody);
+
+    private sealed record RespuestaLinea(
+        string? NumSerie,
+        string EstadoRegistro,
         string? CodigoError,
-        string? DescripcionError);
+        string? DescripcionError,
+        string? DuplicateRecordStatus,
+        string? DuplicateRequestId);
 }
 
-// ?? Excepciones diferenciadas de Infrastructure ???????????????????????????????
-
 /// <summary>
-/// Fallo de comunicación con AEAT (timeout, red, HTTP 5xx).
-/// IsTransient indica si puede reintentarse.
+/// Fallo tÃ©cnico/de transporte. IsTransient decide si el Outbox puede reintentar.
 /// </summary>
 public sealed class VeriFactuCommunicationException : Exception
 {
     public bool IsTransient { get; }
 
-    public VeriFactuCommunicationException(string message, bool isTransient = true)
-        : base(message) => IsTransient = isTransient;
+    public VeriFactuCommunicationException(
+        string message,
+        bool isTransient = true)
+        : base(message)
+    {
+        IsTransient = isTransient;
+    }
 
-    public VeriFactuCommunicationException(string message, Exception inner, bool isTransient = true)
-        : base(message, inner) => IsTransient = isTransient;
+    public VeriFactuCommunicationException(
+        string message,
+        Exception inner,
+        bool isTransient = true)
+        : base(message, inner)
+    {
+        IsTransient = isTransient;
+    }
 }
 
 /// <summary>
-/// SOAP Fault devuelto explícitamente por AEAT.
-/// No debe reintentarse hasta resolver el problema subyacente.
+/// Fault SOAP explÃ­cito de AEAT.
 /// </summary>
 public sealed class VeriFactuSoapFaultException : Exception
 {
-    public VeriFactuSoapFaultException(string message) : base(message) { }
+    public string? RawResponsePayload { get; }
+
+    public VeriFactuSoapFaultException(
+        string message,
+        string? rawResponsePayload = null)
+        : base(message)
+    {
+        RawResponsePayload = rawResponsePayload;
+    }
 }

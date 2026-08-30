@@ -1,5 +1,4 @@
 using System.Xml;
-using System.Xml.Linq;
 using System.Xml.Schema;
 using gesFactu.Application.Common.Abstractions;
 using Microsoft.Extensions.Logging;
@@ -7,32 +6,33 @@ using Microsoft.Extensions.Logging;
 namespace gesFactu.Infrastructure.Integrations.VeriFactu.Validation;
 
 /// <summary>
-/// Validador XSD real contra los esquemas oficiales AEAT VERI*FACTU.
+/// Validador XSD contra los esquemas oficiales AEAT incluidos en /VERIFACTU.
 ///
-/// Los XSD se cargan desde el directorio /VERIFACTU (sin modificarlos).
-/// La validaciÛn se realiza antes de cualquier envÌo a AEAT.
-///
-/// Ref: /VERIFACTU/SuministroLR.xsd.xml
-/// Ref: /VERIFACTU/SuministroInformacion.xsd.xml
-/// Ref: /VERIFACTU/RespuestaSuministro.xsd.xml
+/// Pol√≠tica fail-closed:
+/// - Si no se encuentra un XSD requerido, la validaci√≥n falla.
+/// - Si el esquema no est√° soportado en esta fase, la validaci√≥n falla.
+/// - No se realizan descargas de esquemas durante la validaci√≥n.
 /// </summary>
 public sealed class XmlSchemaValidator : IXmlSchemaValidator
 {
     private readonly ILogger<XmlSchemaValidator> _logger;
     private readonly string _xsdBasePath;
 
-    // Namespaces oficiales
-    private const string NsSf = "https://www2.agenciatributaria.gob.es/static_files/common/internet/dep/aplicaciones/es/aeat/tike/cont/ws/SuministroInformacion.xsd";
-    private const string NsSfLr = "https://www2.agenciatributaria.gob.es/static_files/common/internet/dep/aplicaciones/es/aeat/tike/cont/ws/SuministroLR.xsd";
-    private const string NsRespuesta = "https://www2.agenciatributaria.gob.es/static_files/common/internet/dep/aplicaciones/es/aeat/tike/cont/ws/RespuestaSuministro.xsd";
+    private const string NsSf =
+        "https://www2.agenciatributaria.gob.es/static_files/common/internet/dep/aplicaciones/es/aeat/tike/cont/ws/SuministroInformacion.xsd";
+    private const string NsSfLr =
+        "https://www2.agenciatributaria.gob.es/static_files/common/internet/dep/aplicaciones/es/aeat/tike/cont/ws/SuministroLR.xsd";
+    private const string NsRespuesta =
+        "https://www2.agenciatributaria.gob.es/static_files/common/internet/dep/aplicaciones/es/aeat/tike/cont/ws/RespuestaSuministro.xsd";
+    private const string NsDs = "http://www.w3.org/2000/09/xmldsig#";
 
-    public XmlSchemaValidator(ILogger<XmlSchemaValidator> logger, string? xsdBasePath = null)
+    public XmlSchemaValidator(
+        ILogger<XmlSchemaValidator> logger,
+        string? xsdBasePath = null)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-
-        // Ruta base: por defecto busca VERIFACTU/ relativo al directorio del ejecutable
         _xsdBasePath = xsdBasePath
-            ?? Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "VERIFACTU");
+            ?? Path.Combine(AppContext.BaseDirectory, "VERIFACTU");
     }
 
     public async Task<XmlValidationResult> ValidateAsync(
@@ -41,8 +41,8 @@ public sealed class XmlSchemaValidator : IXmlSchemaValidator
         CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(xmlContent);
-
-        await Task.Yield(); // mantenemos firma async; la validaciÛn XSD es sÌncrona
+        cancellationToken.ThrowIfCancellationRequested();
+        await Task.Yield();
 
         var errors = new List<ValidationError>();
         var warnings = new List<string>();
@@ -53,124 +53,232 @@ public sealed class XmlSchemaValidator : IXmlSchemaValidator
 
             if (errors.Count > 0)
             {
-                // No se pudieron cargar los XSD ó reportar como error tÈcnico
-                _logger.LogError("No se pudieron cargar los esquemas XSD para {SchemaType}. Errores: {Errors}",
-                    schemaType, string.Join("; ", errors.Select(e => e.Message)));
+                _logger.LogError(
+                    "No se pudo preparar la validaci√≥n XSD [{SchemaType}]: {Errors}",
+                    schemaType,
+                    string.Join("; ", errors.Select(e => e.Message)));
 
-                return new XmlValidationResult { IsValid = false, Errors = errors, Warnings = warnings };
+                return new XmlValidationResult
+                {
+                    IsValid = false,
+                    Errors = errors,
+                    Warnings = warnings
+                };
             }
 
-            using var reader = XmlReader.Create(new StringReader(xmlContent), new XmlReaderSettings
+            var settings = new XmlReaderSettings
             {
                 ValidationType = ValidationType.Schema,
                 Schemas = schemaSet,
                 DtdProcessing = DtdProcessing.Prohibit,
-            });
+                XmlResolver = null
+            };
 
-            reader.Settings!.ValidationEventHandler += (_, e) =>
+            settings.ValidationEventHandler += (_, e) =>
             {
                 if (e.Severity == XmlSeverityType.Error)
+                {
                     errors.Add(new ValidationError
                     {
                         Message = e.Message,
                         LineNumber = e.Exception?.LineNumber,
                         LinePosition = e.Exception?.LinePosition
                     });
+                }
                 else
+                {
                     warnings.Add(e.Message);
+                }
             };
 
-            while (reader.Read()) { }
+            using var reader = XmlReader.Create(new StringReader(xmlContent), settings);
+            while (reader.Read())
+                cancellationToken.ThrowIfCancellationRequested();
 
             var isValid = errors.Count == 0;
 
             _logger.LogInformation(
-                "ValidaciÛn XSD [{SchemaType}]: IsValid={IsValid}, Errores={ErrorCount}, Avisos={WarnCount}",
-                schemaType, isValid, errors.Count, warnings.Count);
+                "Validaci√≥n XSD [{SchemaType}]: IsValid={IsValid}, Errores={ErrorCount}, Avisos={WarningCount}",
+                schemaType,
+                isValid,
+                errors.Count,
+                warnings.Count);
 
-            return new XmlValidationResult { IsValid = isValid, Errors = errors, Warnings = warnings };
-        }
-        catch (XmlException ex)
-        {
-            _logger.LogError(ex, "XML mal formado durante validaciÛn XSD");
             return new XmlValidationResult
             {
-                IsValid = false,
-                Errors = new List<ValidationError>
-                {
-                    new() { Message = $"XML mal formado: {ex.Message}", LineNumber = ex.LineNumber, LinePosition = ex.LinePosition }
-                },
+                IsValid = isValid,
+                Errors = errors,
                 Warnings = warnings
             };
         }
-        catch (Exception ex)
+        catch (XmlException ex)
         {
-            _logger.LogError(ex, "Error inesperado en validaciÛn XSD");
             return new XmlValidationResult
             {
                 IsValid = false,
-                Errors = new List<ValidationError> { new() { Message = $"Error interno de validaciÛn: {ex.Message}" } },
+                Errors =
+                [
+                    new ValidationError
+                    {
+                        Message = $"XML mal formado: {ex.Message}",
+                        LineNumber = ex.LineNumber,
+                        LinePosition = ex.LinePosition
+                    }
+                ],
+                Warnings = warnings
+            };
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error inesperado durante validaci√≥n XSD");
+            return new XmlValidationResult
+            {
+                IsValid = false,
+                Errors =
+                [
+                    new ValidationError
+                    {
+                        Message = $"Error interno de validaci√≥n: {ex.Message}"
+                    }
+                ],
                 Warnings = warnings
             };
         }
     }
 
-    private XmlSchemaSet BuildSchemaSet(VeriFactuXmlSchemaType schemaType, List<ValidationError> loadErrors)
+    private XmlSchemaSet BuildSchemaSet(
+        VeriFactuXmlSchemaType schemaType,
+        List<ValidationError> loadErrors)
     {
-        var schemaSet = new XmlSchemaSet();
+        var schemaSet = new XmlSchemaSet
+        {
+            // Los XSD oficiales se cargan expl√≠citamente desde disco.
+            // No permitimos resoluci√≥n de recursos externos en runtime.
+            XmlResolver = null
+        };
 
-        // Siempre cargamos SuministroInformacion ya que es importado por los dem·s
-        TryAddSchema(schemaSet, "SuministroInformacion.xsd.xml", NsSf, loadErrors);
+        // SuministroInformacion importa XMLDSIG aunque ds:Signature es opcional en VERI*FACTU.
+        // Para validar registros sin firma, basta declarar el elemento Signature como anyType
+        // y evitar una descarga remota del XSD W3C.
+        AddXmlDsigCompatibilitySchema(schemaSet);
+
+        TryAddOfficialSchema(
+            schemaSet,
+            "SuministroInformacion.xsd.xml",
+            NsSf,
+            loadErrors);
 
         switch (schemaType)
         {
             case VeriFactuXmlSchemaType.BillingRecord:
-                TryAddSchema(schemaSet, "SuministroLR.xsd.xml", NsSfLr, loadErrors);
+                TryAddOfficialSchema(
+                    schemaSet,
+                    "SuministroLR.xsd.xml",
+                    NsSfLr,
+                    loadErrors);
                 break;
+
             case VeriFactuXmlSchemaType.SubmissionResponse:
-                TryAddSchema(schemaSet, "RespuestaSuministro.xsd.xml", NsRespuesta, loadErrors);
+                // RespuestaSuministro importa tanto SuministroInformacion como SuministroLR.
+                TryAddOfficialSchema(
+                    schemaSet,
+                    "SuministroLR.xsd.xml",
+                    NsSfLr,
+                    loadErrors);
+                TryAddOfficialSchema(
+                    schemaSet,
+                    "RespuestaSuministro.xsd.xml",
+                    NsRespuesta,
+                    loadErrors);
                 break;
+
             default:
-                // Tipos no implementados en esta fase ó validaciÛn b·sica de bien-formado
+                loadErrors.Add(new ValidationError
+                {
+                    Message = $"Validaci√≥n XSD no implementada para {schemaType}."
+                });
                 break;
         }
 
         if (loadErrors.Count == 0)
         {
-            try { schemaSet.Compile(); }
-            catch (Exception ex) { loadErrors.Add(new ValidationError { Message = $"Error compilando esquemas: {ex.Message}" }); }
+            try
+            {
+                schemaSet.Compile();
+            }
+            catch (Exception ex)
+            {
+                loadErrors.Add(new ValidationError
+                {
+                    Message = $"Error compilando esquemas XSD: {ex.Message}"
+                });
+            }
         }
 
         return schemaSet;
     }
 
-    private void TryAddSchema(XmlSchemaSet schemaSet, string xsdFileName, string targetNamespace, List<ValidationError> loadErrors)
+    private void TryAddOfficialSchema(
+        XmlSchemaSet schemaSet,
+        string xsdFileName,
+        string targetNamespace,
+        List<ValidationError> loadErrors)
     {
-        // Busca el XSD en varias rutas posibles para diferentes contextos (dev/test/prod)
+        // La ruta base es deliberadamente √∫nica. Los XSD oficiales se copian
+        // al output/publish; si faltan all√≠, la validaci√≥n debe fallar cerrada.
         var candidates = new[]
         {
-            Path.Combine(_xsdBasePath, xsdFileName),
-            Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "VERIFACTU", xsdFileName)),
-            Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "VERIFACTU", xsdFileName)),
+            Path.GetFullPath(Path.Combine(_xsdBasePath, xsdFileName))
         };
 
         var found = candidates.FirstOrDefault(File.Exists);
-        if (found == null)
+        if (found is null)
         {
-            // Los XSD no est·n disponibles (ej: entorno CI sin carpeta VERIFACTU)
-            // Registramos aviso en lugar de error ó la validaciÛn de bien-formado sigue funcionando
-            _logger.LogWarning("XSD {FileName} no encontrado. ValidaciÛn solo verificar· XML bien-formado.", xsdFileName);
+            loadErrors.Add(new ValidationError
+            {
+                Message =
+                    $"XSD oficial requerido no encontrado: {xsdFileName}. " +
+                    $"Rutas comprobadas: {string.Join(" | ", candidates)}"
+            });
             return;
         }
 
         try
         {
-            using var xsdStream = File.OpenRead(found);
-            schemaSet.Add(targetNamespace, XmlReader.Create(xsdStream));
+            var readerSettings = new XmlReaderSettings
+            {
+                DtdProcessing = DtdProcessing.Prohibit,
+                XmlResolver = null
+            };
+
+            using var reader = XmlReader.Create(found, readerSettings);
+            schemaSet.Add(targetNamespace, reader);
         }
         catch (Exception ex)
         {
-            loadErrors.Add(new ValidationError { Message = $"Error cargando {xsdFileName}: {ex.Message}" });
+            loadErrors.Add(new ValidationError
+            {
+                Message = $"Error cargando {xsdFileName}: {ex.Message}"
+            });
         }
+    }
+
+    private static void AddXmlDsigCompatibilitySchema(XmlSchemaSet schemaSet)
+    {
+        const string schema = """
+            <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+                       targetNamespace="http://www.w3.org/2000/09/xmldsig#"
+                       xmlns:ds="http://www.w3.org/2000/09/xmldsig#"
+                       elementFormDefault="qualified">
+              <xs:element name="Signature" type="xs:anyType" />
+            </xs:schema>
+            """;
+
+        using var reader = XmlReader.Create(new StringReader(schema));
+        schemaSet.Add(NsDs, reader);
     }
 }

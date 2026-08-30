@@ -31,8 +31,8 @@ namespace gesFactu.Infrastructure.Migrations
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
                     b.Property<string>("AeatSubmissionId")
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.Property<string>("ComputedHash")
                         .IsRequired()
@@ -52,6 +52,11 @@ namespace gesFactu.Infrastructure.Migrations
                         .IsRequired()
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("FiscalInvoiceNumber")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("nvarchar(60)");
 
                     b.Property<string>("InvoiceNumber")
                         .IsRequired()
@@ -81,6 +86,16 @@ namespace gesFactu.Infrastructure.Migrations
                         .HasMaxLength(9)
                         .HasColumnType("nvarchar(9)");
 
+                    b.Property<string>("RecipientName")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<string>("RecipientNif")
+                        .IsRequired()
+                        .HasMaxLength(9)
+                        .HasColumnType("nvarchar(9)");
+
                     b.Property<string>("LastModifiedBy")
                         .HasMaxLength(256)
                         .HasColumnType("nvarchar(256)");
@@ -88,9 +103,20 @@ namespace gesFactu.Infrastructure.Migrations
                     b.Property<DateTime?>("LastModifiedDate")
                         .HasColumnType("datetime2");
 
+                    b.Property<int?>("PreviousBillingRecordId")
+                        .HasColumnType("int");
+
                     b.Property<string>("PreviousRecordHash")
                         .HasMaxLength(64)
                         .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("RegisterTimestamp")
+                        .IsRequired()
+                        .HasMaxLength(25)
+                        .HasColumnType("nvarchar(25)");
+
+                    b.Property<Guid?>("SubmissionCorrelationId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -108,6 +134,16 @@ namespace gesFactu.Infrastructure.Migrations
                         .HasColumnType("decimal(18,2)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("PreviousBillingRecordId")
+                        .HasDatabaseName("IX_BillingRecords_PreviousBillingRecordId");
+
+                    b.HasIndex("IssuerNif", "Id")
+                        .HasDatabaseName("IX_BillingRecords_Issuer_GenerationOrder");
+
+                    b.HasIndex("IssuerNif", "FiscalInvoiceNumber", "IssueDate")
+                        .IsUnique()
+                        .HasDatabaseName("UX_BillingRecords_FiscalIdentity");
 
                     b.ToTable("BillingRecords", (string)null);
                 });
@@ -185,7 +221,6 @@ namespace gesFactu.Infrastructure.Migrations
                         .HasColumnType("nvarchar(255)");
 
                     b.Property<Guid>("CorrelationId")
-                        .HasMaxLength(36)
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTime>("CreatedAt")
@@ -204,11 +239,21 @@ namespace gesFactu.Infrastructure.Migrations
                         .HasDefaultValue(false);
 
                     b.Property<string>("LastProcessingError")
-                        .HasColumnType("NVARCHAR(MAX)");
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("LockedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime?>("LockedUntil")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("NextAttemptAt")
+                        .HasColumnType("datetime2");
 
                     b.Property<string>("Payload")
                         .IsRequired()
-                        .HasColumnType("NVARCHAR(MAX)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<DateTime?>("ProcessedAt")
                         .HasColumnType("datetime2");
@@ -230,8 +275,12 @@ namespace gesFactu.Infrastructure.Migrations
                     b.HasIndex("IsProcessed")
                         .HasDatabaseName("IX_OutboxMessages_IsProcessed");
 
-                    b.HasIndex("IsProcessed", "ProcessingAttempts")
-                        .HasDatabaseName("IX_OutboxMessages_IsProcessed_Attempts");
+                    b.HasIndex("AggregateType", "AggregateId", "EventType")
+                        .IsUnique()
+                        .HasDatabaseName("UX_OutboxMessages_AggregateEvent");
+
+                    b.HasIndex("IsProcessed", "NextAttemptAt", "LockedUntil", "CreatedAt")
+                        .HasDatabaseName("IX_OutboxMessages_Claim");
 
                     b.ToTable("OutboxMessages", (string)null);
                 });
@@ -271,8 +320,8 @@ namespace gesFactu.Infrastructure.Migrations
                         .HasColumnType("nvarchar(50)");
 
                     b.Property<string>("ResponseDescription")
-                        .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)");
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
 
                     b.Property<string>("ResponsePayload")
                         .HasColumnType("nvarchar(max)");
@@ -290,7 +339,8 @@ namespace gesFactu.Infrastructure.Migrations
                         .HasDatabaseName("IX_SubmissionAttempts_BillingRecordId");
 
                     b.HasIndex("BillingRecordId", "AttemptNumber")
-                        .HasDatabaseName("IX_SubmissionAttempts_BillingRecordAndAttempt");
+                        .IsUnique()
+                        .HasDatabaseName("UX_SubmissionAttempts_BillingRecordAndAttempt");
 
                     b.HasIndex("Status", "SubmittedAt")
                         .HasDatabaseName("IX_SubmissionAttempts_StatusAndTime");

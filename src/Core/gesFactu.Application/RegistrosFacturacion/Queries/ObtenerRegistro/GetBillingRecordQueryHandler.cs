@@ -6,7 +6,7 @@ using gesFactu.Application.Common.Abstractions;
 namespace gesFactu.Application.RegistrosFacturacion.Queries.ObtenerRegistro;
 
 /// <summary>
-/// Handler para obtener un registro de facturación.
+/// Handler para obtener un registro de facturaciÃ³n.
 /// </summary>
 public sealed class GetBillingRecordQueryHandler
     : IRequestHandler<GetBillingRecordQuery, Result<BillingRecordDto>>
@@ -26,7 +26,7 @@ public sealed class GetBillingRecordQueryHandler
         GetBillingRecordQuery query,
         CancellationToken cancellationToken)
     {
-        _logger.LogInformation("Obteniendo registro de facturación: {Id}", query.BillingRecordId);
+        _logger.LogInformation("Obteniendo registro de facturaciÃ³n: {Id}", query.BillingRecordId);
 
         try
         {
@@ -45,6 +45,8 @@ public sealed class GetBillingRecordQueryHandler
                 record.Id,
                 invoiceId,
                 record.IssuerName,
+                record.RecipientNif,
+                record.RecipientName,
                 record.Description,
                 record.TotalAmount,
                 record.TotalTaxAmount,
@@ -52,6 +54,7 @@ public sealed class GetBillingRecordQueryHandler
                 record.ComputedHash,
                 record.PreviousRecordHash,
                 record.AeatSubmissionId,
+                record.SubmissionCorrelationId?.ToString(),
                 record.IsSubmitted,
                 record.CreateDate,
                 record.CreatedBy

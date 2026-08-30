@@ -36,7 +36,6 @@ public static class DependencyInjection
 
         // Repositorios
         services.AddScoped<IBillingRecordRepository, BillingRecordRepository>();
-        services.AddScoped<SubmissionAttemptRepository>();
 
         // Outbox store para procesamiento confiable
         services.AddScoped<IOutboxStore, OutboxStore>();
@@ -44,7 +43,7 @@ public static class DependencyInjection
         // Dead letter store para mensajes irrecuperables
         services.AddScoped<IDeadLetterStore, DeadLetterStore>();
 
-        // Submission attempt store para auditoría
+        // Submission attempt store para auditorÃ­a
         services.AddScoped<ISubmissionAttemptStore, SubmissionAttemptStore>();
 
         // Hash calculation (SHA256 para VERI*FACTU)
@@ -56,15 +55,15 @@ public static class DependencyInjection
         // Cliente AEAT: configurable (stub en desarrollo, SOAP real con ClientMode=SoapClient)
         services.AddVeriFactuClient(configuration);
 
-        // Validación XSD real contra esquemas oficiales AEAT
+        // ValidaciÃ³n XSD real contra esquemas oficiales AEAT
         // Ref: /VERIFACTU/SuministroLR.xsd.xml, SuministroInformacion.xsd.xml
         services.AddScoped<IXmlSchemaValidator, XmlSchemaValidator>();
 
         // Generador de XML conforme a XSD oficial AEAT (RegistroAlta)
-        // NOTA: IXmlSignatureService eliminado — VERI*FACTU (modalidad sistema verificable)
+        // NOTA: IXmlSignatureService eliminado â€” VERI*FACTU (modalidad sistema verificable)
         // NO requiere firma XAdES del XML. El campo ds:Signature es opcional (minOccurs=0).
-        // La autenticación con AEAT se realiza mediante mTLS (certificado en capa HTTPS).
-        // Ref: /VERIFACTU/SuministroInformacion.xsd.xml — ds:Signature minOccurs=0
+        // La autenticaciÃ³n con AEAT se realiza mediante mTLS (certificado en capa HTTPS).
+        // Ref: /VERIFACTU/SuministroInformacion.xsd.xml â€” ds:Signature minOccurs=0
         services.AddScoped<IRegistroAltaXmlBuilder, RegistroAltaXmlBuilderAdapter>();
 
         // Servicio background para procesar outbox

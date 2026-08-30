@@ -1,20 +1,20 @@
 using MediatR;
 using gesFactu.Application.Common.Abstractions;
 
-namespace gesFactu.Application.Auditoría.Queries.ObtenerHistorialEnvíos;
+namespace gesFactu.Application.AuditorÃ­a.Queries.ObtenerHistorialEnvÃ­os;
 
 /// <summary>
-/// Query para obtener el historial completo de intentos de envío de un registro.
+/// Query para obtener el historial completo de intentos de envÃ­o de un registro.
 /// </summary>
-public record ObtenerHistorialEnvíosQuery(int BillingRecordId) : IRequest<ObtenerHistorialEnvíosResult>;
+public record ObtenerHistorialEnvÃ­osQuery(int BillingRecordId)
+    : IRequest<ObtenerHistorialEnvÃ­osResult>;
 
 /// <summary>
-/// Resultado de la query con el historial de envíos.
+/// Resultado de la query con el historial de envÃ­os.
 /// </summary>
-public record ObtenerHistorialEnvíosResult(
+public record ObtenerHistorialEnvÃ­osResult(
     int BillingRecordId,
     List<SubmissionAttemptDto> Intentos,
-    bool TieneÉxito,
+    bool TieneÃ‰xito,
     DateTime? PrimeraFecha,
-    DateTime? ÚltimaFecha
-);
+    DateTime? ÃšltimaFecha);
