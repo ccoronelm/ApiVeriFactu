@@ -40,6 +40,12 @@ public interface IBillingRecordRepository
         int sourceBillingRecordId,
         CancellationToken cancellationToken = default);
 
+    Task<BillingRecord?> GetCancellationForFiscalIdentityAsync(
+        string issuerNif,
+        string fiscalInvoiceNumber,
+        DateOnly issueDate,
+        CancellationToken cancellationToken = default);
+
     Task<IEnumerable<BillingRecord>> ListByIssuerAsync(
         string issuerNif,
         int pageSize = 50,
