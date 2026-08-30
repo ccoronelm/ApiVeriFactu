@@ -114,7 +114,7 @@ if (app.Environment.IsProduction())
             "Producción requiere VeriFactu:AllowProduction=true de forma explícita.");
     }
 
-    if (veriFactuOptions.ClientMode != VeriFactuClientMode.Soap)
+    if (veriFactuOptions.ClientMode != "SoapClient")
     {
         throw new InvalidOperationException(
             "Producción requiere VeriFactu:ClientMode=Soap.");
