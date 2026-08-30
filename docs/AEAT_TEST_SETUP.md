@@ -45,11 +45,18 @@ dotnet user-secrets set "VeriFactu:SistemaInformatico:IndicadorMultiplesOT" "N" 
 
 Los datos de `SistemaInformatico` deben corresponder a la realidad del producto y del productor; no deben inventarse.
 
-## 3. Base de datos
+## 3. Base de datos PostgreSQL
+
+La contraseña real no se guarda en Git. En Development se configura la conexión mediante User Secrets:
 
 ```powershell
+$project = "src/Api/gesFactu.Api/gesFactu.Api.csproj"
+dotnet user-secrets set "ConnectionStrings:DefaultConnection" "Host=localhost;Port=5432;Database=gesFactuDb;Username=gesfactu;Password=<PASSWORD>" --project $project
+
+$env:GESFACTU_DESIGN_CONNECTION = "Host=localhost;Port=5432;Database=gesFactuDb;Username=gesfactu;Password=<PASSWORD>"
 dotnet tool restore
-dotnet ef database update --project src/Infrastructure/gesFactu.Infrastructure.csproj --startup-project src/Api/gesFactu.Api/gesFactu.Api.csproj
+dotnet ef database update --project src/Infrastructure/gesFactu.Infrastructure.csproj --startup-project src/Api/gesFactu.Api/gesFactu.Api.csproj --connection $env:GESFACTU_DESIGN_CONNECTION
+Remove-Item Env:GESFACTU_DESIGN_CONNECTION
 ```
 
 ## 4. Compilar y probar
@@ -132,7 +139,7 @@ validación XSD oficial
    ↓
 Transactional Outbox
    ↓
-claim exclusivo SQL Server
+claim exclusivo PostgreSQL (`FOR UPDATE SKIP LOCKED`)
    ↓
 SubmissionAttempt
    ↓
