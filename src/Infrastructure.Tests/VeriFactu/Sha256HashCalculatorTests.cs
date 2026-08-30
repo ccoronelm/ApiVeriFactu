@@ -5,248 +5,165 @@ using gesFactu.Infrastructure.VeriFactu;
 namespace gesFactu.Infrastructure.Tests.VeriFactu;
 
 /// <summary>
-/// Tests para validar que el cálculo de hash es determinista y correcto.
-/// 
-/// El hash es crítico para VERI*FACTU, por lo que debe ser exhaustivamente testeado
-/// contra valores conocidos y ejemplos oficiales.
+/// Tests de huella VERI*FACTU.
+/// Los dos primeros casos reproducen exactamente los vectores oficiales del documento AEAT:
+/// /VERIFACTU/Veri-Factu_especificaciones_huella_hash_registros.pdf, apartados 6.1 y 6.2.
 /// </summary>
 public sealed class Sha256HashCalculatorTests
 {
-    private readonly Sha256HashCalculator _calculator;
-
-    public Sha256HashCalculatorTests()
-    {
-        _calculator = new Sha256HashCalculator();
-    }
+    private readonly Sha256HashCalculator _calculator = new();
 
     [Fact]
-    public void CalculateSha256_WithString_ReturnsValidHash()
+    public void CalculateChainHash_OfficialCase1_FirstRegistro_MatchesAeatVector()
     {
-        // Arrange
-        var data = "hello world";
-
-        // Act
-        var hash = _calculator.CalculateSha256(data);
-
-        // Assert
-        Assert.NotNull(hash);
-        Assert.Equal(64, hash.Length); // SHA256 = 256 bits = 64 hex chars
-        Assert.True(hash.All(c => char.IsAsciiHexDigitUpper(c)), "Hash debe estar en hexadecimal mayúsculas");
-    }
-
-    [Fact]
-    public void CalculateSha256_IsDeterministic()
-    {
-        // Arrange
-        var data = "test data";
-
-        // Act
-        var hash1 = _calculator.CalculateSha256(data);
-        var hash2 = _calculator.CalculateSha256(data);
-
-        // Assert
-        Assert.Equal(hash1, hash2);
-    }
-
-    [Fact]
-    public void CalculateSha256_DifferentDataProducesDifferentHash()
-    {
-        // Arrange & Act
-        var hash1 = _calculator.CalculateSha256("data1");
-        var hash2 = _calculator.CalculateSha256("data2");
-
-        // Assert
-        Assert.NotEqual(hash1, hash2);
-    }
-
-    [Fact]
-    public void CalculateSha256_WithKnownValue()
-    {
-        // Este test valida contra un valor SHA256 conocido
-        // "hello world" en SHA256 = b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9
-
-        // Arrange
-        var data = "hello world";
-        var expectedHash = "B94D27B9934D3E08A52E52D7DA7DABFAC484EFE37A5380EE9088F7ACE2EFCDE9";
-
-        // Act
-        var hash = _calculator.CalculateSha256(data);
-
-        // Assert
-        Assert.Equal(expectedHash, hash);
-    }
-
-    [Fact]
-    public void CalculateChainHash_WithMinimalInput_ReturnsValidHash()
-    {
-        // Arrange
         var input = new BillingRecordHashInput
         {
-            PreviousHash = "",
-            IssuerNif = "12345678A",
-            InvoiceSeries = "A",
-            InvoiceNumber = "001",
-            IssueDate = "03-02-2025",
-            InvoiceType = "",
-            TotalAmount = 100.00m,
-            TotalTaxAmount = 21.00m,
-            Description = "",
-            RegisterTimestamp = "2025-02-03T14:30:00Z",
-            SoftwareId = ""
+            PreviousHash = string.Empty,
+            IssuerNif = "89890001K",
+            InvoiceSeries = "12345678/",
+            InvoiceNumber = "G33",
+            IssueDate = "01-01-2024",
+            InvoiceType = "F1",
+            TotalTaxAmount = 12.35m,
+            TotalAmount = 123.45m,
+            RegisterTimestamp = "2024-01-01T19:20:30+01:00"
         };
 
-        // Act
         var hash = _calculator.CalculateChainHash(input);
 
-        // Assert
-        Assert.NotNull(hash);
-        Assert.Equal(64, hash.Length);
-        Assert.True(hash.All(c => char.IsAsciiHexDigitUpper(c)));
+        Assert.Equal(
+            "3C464DAF61ACB827C65FDA19F352A4E3BDC2C640E9E9FC4CC058073F38F12F60",
+            hash);
+    }
+
+    [Fact]
+    public void CalculateChainHash_OfficialCase2_WithPreviousRegistro_MatchesAeatVector()
+    {
+        var input = new BillingRecordHashInput
+        {
+            PreviousHash = "3C464DAF61ACB827C65FDA19F352A4E3BDC2C640E9E9FC4CC058073F38F12F60",
+            IssuerNif = "89890001K",
+            InvoiceSeries = "12345679/",
+            InvoiceNumber = "G34",
+            IssueDate = "01-01-2024",
+            InvoiceType = "F1",
+            TotalTaxAmount = 12.35m,
+            TotalAmount = 123.45m,
+            RegisterTimestamp = "2024-01-01T19:20:35+01:00"
+        };
+
+        var hash = _calculator.CalculateChainHash(input);
+
+        Assert.Equal(
+            "F7B94CFD8924EDFF273501B01EE5153E4CE8F259766F88CF6ACB8935802A2B97",
+            hash);
+    }
+
+    [Fact]
+    public void CalculateSha256_WithKnownValue_ReturnsUppercaseHex()
+    {
+        var hash = _calculator.CalculateSha256("hello world");
+
+        Assert.Equal(
+            "B94D27B9934D3E08A52E52D7DA7DABFAC484EFE37A5380EE9088F7ACE2EFCDE9",
+            hash);
     }
 
     [Fact]
     public void CalculateChainHash_IsDeterministic()
     {
-        // Arrange
         var input = new BillingRecordHashInput
         {
-            PreviousHash = "ABC123",
-            IssuerNif = "12345678A",
+            PreviousHash = string.Empty,
+            IssuerNif = "89890001K",
             InvoiceSeries = "A",
-            InvoiceNumber = "001",
+            InvoiceNumber = "0001",
             IssueDate = "03-02-2025",
             InvoiceType = "F1",
-            TotalAmount = 250.50m,
-            TotalTaxAmount = 52.61m,
-            Description = "Servicios de consultoría",
-            RegisterTimestamp = "2025-02-03T14:30:00+01:00",
-            SoftwareId = "gesFactu-1.0"
+            TotalAmount = 121m,
+            TotalTaxAmount = 21m,
+            RegisterTimestamp = "2025-02-03T14:30:00+01:00"
         };
 
-        // Act
-        var hash1 = _calculator.CalculateChainHash(input);
-        var hash2 = _calculator.CalculateChainHash(input);
-
-        // Assert
-        Assert.Equal(hash1, hash2);
+        Assert.Equal(
+            _calculator.CalculateChainHash(input),
+            _calculator.CalculateChainHash(input));
     }
 
     [Fact]
-    public void CalculateChainHash_DifferentPreviousHashProducesDifferentHash()
+    public void CalculateChainHash_TreatsTrailingDecimalZerosAsEquivalent()
     {
-        // Arrange
-        var baseInput = new BillingRecordHashInput
-        {
-            IssuerNif = "12345678A",
-            InvoiceSeries = "A",
-            InvoiceNumber = "001",
-            IssueDate = "03-02-2025",
-            TotalAmount = 100.00m,
-            TotalTaxAmount = 21.00m,
-            RegisterTimestamp = "2025-02-03T14:30:00Z"
-        };
-
-        var input1 = baseInput with { PreviousHash = "" };
-        var input2 = baseInput with { PreviousHash = "ABC123DEF456" };
-
-        // Act
-        var hash1 = _calculator.CalculateChainHash(input1);
-        var hash2 = _calculator.CalculateChainHash(input2);
-
-        // Assert
-        Assert.NotEqual(hash1, hash2);
-    }
-
-    [Fact]
-    public void CalculateChainHash_WithDecimalVariations_ProducesCorrectFormats()
-    {
-        // Arrange
         var input1 = new BillingRecordHashInput
         {
-            PreviousHash = "",
-            IssuerNif = "12345678A",
+            PreviousHash = string.Empty,
+            IssuerNif = "89890001K",
             InvoiceSeries = "A",
-            InvoiceNumber = "001",
+            InvoiceNumber = "0001",
             IssueDate = "03-02-2025",
-            TotalAmount = 100m,
-            TotalTaxAmount = 21m,
-            RegisterTimestamp = "2025-02-03T14:30:00Z"
+            InvoiceType = "F1",
+            TotalAmount = 123.1m,
+            TotalTaxAmount = 12.3m,
+            RegisterTimestamp = "2025-02-03T14:30:00+01:00"
         };
 
-        var input2 = new BillingRecordHashInput
+        var input2 = input1 with
         {
-            PreviousHash = "",
-            IssuerNif = "12345678A",
-            InvoiceSeries = "A",
-            InvoiceNumber = "001",
-            IssueDate = "03-02-2025",
-            TotalAmount = 100.00m,
-            TotalTaxAmount = 21.00m,
-            RegisterTimestamp = "2025-02-03T14:30:00Z"
+            TotalAmount = 123.10m,
+            TotalTaxAmount = 12.30m
         };
 
-        // Act
-        var hash1 = _calculator.CalculateChainHash(input1);
-        var hash2 = _calculator.CalculateChainHash(input2);
-
-        // Assert
-        // Ambos deben ser iguales porque 100 y 100.00 se formatean igual (100.00)
-        Assert.Equal(hash1, hash2);
+        Assert.Equal(
+            _calculator.CalculateChainHash(input1),
+            _calculator.CalculateChainHash(input2));
     }
 
     [Fact]
-    public void CalculateChainHash_ThrowsWhenNifIsEmpty()
+    public void CalculateChainHash_TrimsXmlFieldValues()
     {
-        // Arrange
+        var clean = new BillingRecordHashInput
+        {
+            PreviousHash = string.Empty,
+            IssuerNif = "89890001K",
+            InvoiceSeries = "12345678/",
+            InvoiceNumber = "G33",
+            IssueDate = "01-01-2024",
+            InvoiceType = "F1",
+            TotalTaxAmount = 12.35m,
+            TotalAmount = 123.45m,
+            RegisterTimestamp = "2024-01-01T19:20:30+01:00"
+        };
+
+        var padded = clean with
+        {
+            IssuerNif = " 89890001K ",
+            InvoiceSeries = " 12345678/ ",
+            InvoiceNumber = " G33 ",
+            IssueDate = " 01-01-2024 ",
+            InvoiceType = " F1 ",
+            RegisterTimestamp = " 2024-01-01T19:20:30+01:00 "
+        };
+
+        Assert.Equal(
+            _calculator.CalculateChainHash(clean),
+            _calculator.CalculateChainHash(padded));
+    }
+
+    [Fact]
+    public void CalculateChainHash_ThrowsWhenInvoiceTypeIsMissing()
+    {
         var input = new BillingRecordHashInput
         {
-            PreviousHash = "",
-            IssuerNif = "",
+            PreviousHash = string.Empty,
+            IssuerNif = "89890001K",
             InvoiceSeries = "A",
-            InvoiceNumber = "001",
+            InvoiceNumber = "0001",
             IssueDate = "03-02-2025",
-            TotalAmount = 100m,
+            InvoiceType = string.Empty,
+            TotalAmount = 121m,
             TotalTaxAmount = 21m,
-            RegisterTimestamp = "2025-02-03T14:30:00Z"
+            RegisterTimestamp = "2025-02-03T14:30:00+01:00"
         };
 
-        // Act & Assert
         Assert.Throws<ArgumentException>(() => _calculator.CalculateChainHash(input));
-    }
-
-    [Fact]
-    public void CalculateChainHash_NormalizesNifToUppercase()
-    {
-        // Arrange
-        var inputLower = new BillingRecordHashInput
-        {
-            PreviousHash = "",
-            IssuerNif = "12345678a",
-            InvoiceSeries = "A",
-            InvoiceNumber = "001",
-            IssueDate = "03-02-2025",
-            TotalAmount = 100m,
-            TotalTaxAmount = 21m,
-            RegisterTimestamp = "2025-02-03T14:30:00Z"
-        };
-
-        var inputUpper = new BillingRecordHashInput
-        {
-            PreviousHash = "",
-            IssuerNif = "12345678A",
-            InvoiceSeries = "A",
-            InvoiceNumber = "001",
-            IssueDate = "03-02-2025",
-            TotalAmount = 100m,
-            TotalTaxAmount = 21m,
-            RegisterTimestamp = "2025-02-03T14:30:00Z"
-        };
-
-        // Act
-        var hashLower = _calculator.CalculateChainHash(inputLower);
-        var hashUpper = _calculator.CalculateChainHash(inputUpper);
-
-        // Assert
-        Assert.Equal(hashLower, hashUpper);
     }
 }
