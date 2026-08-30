@@ -10,7 +10,7 @@ namespace gesFactu.Application.RegistrosFacturacion.Commands.CrearRegistro;
 /// <summary>
 /// Crea un RegistroAlta y resuelve internamente su encadenamiento VERI*FACTU.
 /// La selección del RF anterior y la inserción del nuevo RF se ejecutan dentro
-/// de una transacción SERIALIZABLE para proteger la secuencia frente a concurrencia.
+/// de una transacción protegida por un bloqueo transaccional de PostgreSQL para evitar carreras.
 /// </summary>
 public sealed class CreateBillingRecordCommandHandler
     : IRequestHandler<CreateBillingRecordCommand, Result<CreateBillingRecordResponse>>
@@ -164,7 +164,7 @@ public sealed class CreateBillingRecordCommandHandler
         try
         {
             await using var transaction =
-                await _dbContext.BeginSerializableTransactionAsync(cancellationToken);
+                await _dbContext.BeginTransactionAsync(cancellationToken);
 
             // Un solo generador puede avanzar la cadena de este obligado tributario
             // al mismo tiempo, incluso si hay varias instancias de la API.
