@@ -26,6 +26,24 @@ public sealed class VeriFactuConfigurationTests
     }
 
     [Fact]
+    public void AddVeriFactuClient_ProductionRejectsStubEvenWithExplicitSwitch()
+    {
+        var config = BuildConfiguration(new Dictionary<string, string?>
+        {
+            ["VeriFactu:Environment"] = "Production",
+            ["VeriFactu:AllowProduction"] = "true",
+            ["VeriFactu:ClientMode"] = "Stub"
+        });
+
+        var services = new ServiceCollection();
+
+        var ex = Assert.Throws<InvalidOperationException>(
+            () => services.AddVeriFactuClient(config));
+
+        Assert.Contains("ClientMode=SoapClient", ex.Message);
+    }
+
+    [Fact]
     public void AddVeriFactuClient_SoapModeFailsFastWhenCertificateIsMissing()
     {
         var config = BuildConfiguration(new Dictionary<string, string?>
