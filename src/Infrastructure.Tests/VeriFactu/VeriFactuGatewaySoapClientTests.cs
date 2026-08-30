@@ -51,6 +51,32 @@ public sealed class VeriFactuGatewaySoapClientTests
     }
 
     [Fact]
+    public async Task SubmitBillingRecordAsync_SeleccionaHttpClientPorNifDelObligado()
+    {
+        var provider = new CapturingHttpClientProvider(
+            AcceptedSoapResponse(),
+            HttpStatusCode.OK);
+
+        var validator = new XmlSchemaValidator(
+            NullLogger<XmlSchemaValidator>.Instance,
+            Path.Combine(AppContext.BaseDirectory, "VERIFACTU"));
+
+        var gateway = new VeriFactuGatewaySoapClient(
+            provider,
+            Options.Create(new VeriFactuOptions
+            {
+                Environment = VeriFactuEntorno.Test
+            }),
+            validator,
+            NullLogger<VeriFactuGatewaySoapClient>.Instance);
+
+        var result = await gateway.SubmitBillingRecordAsync(CreateRequest());
+
+        Assert.True(result.IsAccepted);
+        Assert.Equal(Nif, provider.LastRequestedNif);
+    }
+
+    [Fact]
     public async Task SubmitBillingRecordAsync_ThrowsDifferentiatedSoapFault()
     {
         var gateway = CreateGateway(
@@ -185,6 +211,28 @@ public sealed class VeriFactuGatewaySoapClientTests
           </soapenv:Body>
         </soapenv:Envelope>
         """;
+
+    private sealed class CapturingHttpClientProvider
+        : IVeriFactuHttpClientProvider
+    {
+        private readonly HttpClient _client;
+
+        public CapturingHttpClientProvider(
+            string body,
+            HttpStatusCode statusCode)
+        {
+            _client = new HttpClient(
+                new FixedResponseHandler(body, statusCode));
+        }
+
+        public string? LastRequestedNif { get; private set; }
+
+        public HttpClient GetClient(string taxpayerNif)
+        {
+            LastRequestedNif = taxpayerNif;
+            return _client;
+        }
+    }
 
     private sealed class FixedResponseHandler : HttpMessageHandler
     {
