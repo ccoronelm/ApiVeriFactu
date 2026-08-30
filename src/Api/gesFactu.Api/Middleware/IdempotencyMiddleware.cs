@@ -166,6 +166,26 @@ public sealed class IdempotencyMiddleware
                 originalBody,
                 context.RequestAborted);
         }
+        catch
+        {
+            context.Response.Body = originalBody;
+
+            if (dbContext.Entry(record).State != EntityState.Detached)
+            {
+                dbContext.IdempotencyRecords.Remove(record);
+                try
+                {
+                    await dbContext.SaveChangesAsync(CancellationToken.None);
+                }
+                catch
+                {
+                    // El error original tiene prioridad. Un Pending huérfano se
+                    // mantiene fail-closed y será visible operativamente.
+                }
+            }
+
+            throw;
+        }
         finally
         {
             context.Response.Body = originalBody;
@@ -174,9 +194,8 @@ public sealed class IdempotencyMiddleware
 
     private static bool IsUnsafeApiRequest(HttpRequest request)
         => request.Path.StartsWithSegments("/api") &&
-           HttpMethods.IsPost(request.Method) ||
-           request.Path.StartsWithSegments("/api") &&
-           (HttpMethods.IsPut(request.Method) ||
+           (HttpMethods.IsPost(request.Method) ||
+            HttpMethods.IsPut(request.Method) ||
             HttpMethods.IsPatch(request.Method) ||
             HttpMethods.IsDelete(request.Method));
 
