@@ -41,18 +41,7 @@ builder.Services.Configure<OperationsOptions>(
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen(options =>
-{
-    options.SwaggerDoc(
-        "v1",
-        new Microsoft.OpenApi.Models.OpenApiInfo
-        {
-            Title = "gesFactu VERI*FACTU API",
-            Version = "v1",
-            Description =
-                "API de facturación VERI*FACTU. Autenticación AEAT mediante mTLS; sin firma XML/XAdES."
-        });
-});
+builder.Services.AddSwaggerGen();
 
 builder.Services
     .AddHealthChecks()
