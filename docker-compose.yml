@@ -1,0 +1,63 @@
+services:
+  gesfactu-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: gesfactu-api:local
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      AllowedHosts: "${GESFACTU_ALLOWED_HOSTS}"
+      ConnectionStrings__DefaultConnection: "${GESFACTU_DB_CONNECTION}"
+
+      Security__ApiKeyFile: /run/secrets/gesfactu_api_key
+      Operations__AdminApiKeyFile: /run/secrets/gesfactu_admin_key
+
+      VeriFactu__Environment: Production
+      VeriFactu__AllowProduction: "${GESFACTU_ALLOW_PRODUCTION:-false}"
+      VeriFactu__ClientMode: SoapClient
+      VeriFactu__Taxpayer__Nif: "${GESFACTU_TAXPAYER_NIF}"
+      VeriFactu__Taxpayer__Name: "${GESFACTU_TAXPAYER_NAME}"
+      VeriFactu__Certificate__PfxPath: /run/secrets/aeat_pfx
+      VeriFactu__Certificate__PfxPasswordFile: /run/secrets/aeat_pfx_password
+
+      VeriFactu__SistemaInformatico__NombreRazon: "${GESFACTU_SYSTEM_PRODUCER_NAME}"
+      VeriFactu__SistemaInformatico__Nif: "${GESFACTU_SYSTEM_PRODUCER_NIF}"
+      VeriFactu__SistemaInformatico__NombreSistemaInformatico: "${GESFACTU_SYSTEM_NAME:-gesFactu}"
+      VeriFactu__SistemaInformatico__IdSistemaInformatico: "${GESFACTU_SYSTEM_ID}"
+      VeriFactu__SistemaInformatico__Version: "${GESFACTU_SYSTEM_VERSION}"
+      VeriFactu__SistemaInformatico__NumeroInstalacion: "${GESFACTU_INSTALLATION_NUMBER}"
+
+      ReverseProxy__TrustedProxies__0: "${GESFACTU_TRUSTED_PROXY_IP}"
+      Cors__AllowedOrigins__0: "${GESFACTU_ALLOWED_ORIGIN}"
+      OpenApi__Enabled: "false"
+
+    secrets:
+      - gesfactu_api_key
+      - gesfactu_admin_key
+      - aeat_pfx
+      - aeat_pfx_password
+
+    networks:
+      - gesfactu-internal
+
+    expose:
+      - "8080"
+
+  # PostgreSQL NO se crea aquí: la plataforma completa comparte una instancia
+  # PostgreSQL y esta API utiliza su propia base/usuario dentro de ella.
+
+secrets:
+  gesfactu_api_key:
+    file: "${GESFACTU_API_KEY_FILE}"
+  gesfactu_admin_key:
+    file: "${GESFACTU_ADMIN_KEY_FILE}"
+  aeat_pfx:
+    file: "${GESFACTU_AEAT_PFX_FILE}"
+  aeat_pfx_password:
+    file: "${GESFACTU_AEAT_PFX_PASSWORD_FILE}"
+
+networks:
+  gesfactu-internal:
+    external: true
+    name: "${GESFACTU_DOCKER_NETWORK:-gesfactu-internal}"

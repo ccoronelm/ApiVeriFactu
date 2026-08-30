@@ -1,11 +1,17 @@
+using System.Net;
 using System.Text.Json;
+using System.Threading.RateLimiting;
 using gesFactu.Api.Configuration;
 using gesFactu.Api.Health;
+using gesFactu.Api.Infrastructure;
 using gesFactu.Api.Middleware;
 using gesFactu.Application;
+using gesFactu.Application.Common.Abstractions;
 using gesFactu.Infrastructure;
 using gesFactu.Infrastructure.Integrations.VeriFactu;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Serilog;
 
@@ -33,13 +39,37 @@ builder.Host.UseSerilog((context, loggerConfig) =>
         .Enrich.WithProperty("Application", "gesFactu.Api");
 });
 
+var maxRequestBodyBytes = Math.Max(
+    64 * 1024,
+    builder.Configuration.GetValue<long?>(
+        "RequestLimits:MaxRequestBodyBytes") ?? 1_048_576);
+
+builder.WebHost.ConfigureKestrel(options =>
+{
+    options.Limits.MaxRequestBodySize = maxRequestBodyBytes;
+});
+
+builder.Services.Configure<SecurityOptions>(
+    builder.Configuration.GetSection(SecurityOptions.SectionName));
+builder.Services.Configure<OperationsOptions>(
+    builder.Configuration.GetSection(OperationsOptions.SectionName));
+builder.Services.Configure<IdempotencyOptions>(
+    builder.Configuration.GetSection(IdempotencyOptions.SectionName));
+builder.Services.Configure<RateLimitOptions>(
+    builder.Configuration.GetSection(RateLimitOptions.SectionName));
+builder.Services.Configure<RequestLimitsOptions>(
+    builder.Configuration.GetSection(RequestLimitsOptions.SectionName));
+builder.Services.Configure<ReverseProxyOptions>(
+    builder.Configuration.GetSection(ReverseProxyOptions.SectionName));
+
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<IAuditContext, HttpAuditContext>();
+
 builder.Services.AddApplicationServices();
 builder.Services.AddInfrastructureServices(builder.Configuration);
 
-builder.Services.Configure<OperationsOptions>(
-    builder.Configuration.GetSection(OperationsOptions.SectionName));
-
 builder.Services.AddControllers();
+builder.Services.AddAuthorization();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
@@ -53,10 +83,14 @@ builder.Services
         tags: ["ready"]);
 
 var allowedOrigins =
-    builder.Configuration
+    (builder.Configuration
         .GetSection("Cors:AllowedOrigins")
         .Get<string[]>()
-    ?? Array.Empty<string>();
+    ?? Array.Empty<string>())
+    .Where(x => !string.IsNullOrWhiteSpace(x))
+    .Select(x => x.Trim())
+    .Distinct(StringComparer.OrdinalIgnoreCase)
+    .ToArray();
 
 builder.Services.AddCors(options =>
 {
@@ -70,6 +104,58 @@ builder.Services.AddCors(options =>
     });
 });
 
+var rateLimit = new RateLimitOptions();
+builder.Configuration
+    .GetSection(RateLimitOptions.SectionName)
+    .Bind(rateLimit);
+
+var permitLimit = Math.Clamp(rateLimit.PermitLimit, 10, 10000);
+var rateWindow = TimeSpan.FromSeconds(
+    Math.Clamp(rateLimit.WindowSeconds, 1, 3600));
+
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.GlobalLimiter =
+        PartitionedRateLimiter.Create<HttpContext, string>(context =>
+            RateLimitPartition.GetFixedWindowLimiter(
+                context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                _ => new FixedWindowRateLimiterOptions
+                {
+                    PermitLimit = permitLimit,
+                    Window = rateWindow,
+                    QueueLimit = 0,
+                    AutoReplenishment = true
+                }));
+});
+
+var reverseProxy = new ReverseProxyOptions();
+builder.Configuration
+    .GetSection(ReverseProxyOptions.SectionName)
+    .Bind(reverseProxy);
+
+var trustedProxyAddresses = reverseProxy.TrustedProxies
+    .Select(x => IPAddress.TryParse(x, out var ip) ? ip : null)
+    .Where(x => x is not null)
+    .Cast<IPAddress>()
+    .ToArray();
+
+if (trustedProxyAddresses.Length > 0)
+{
+    builder.Services.Configure<ForwardedHeadersOptions>(options =>
+    {
+        options.ForwardedHeaders =
+            ForwardedHeaders.XForwardedFor |
+            ForwardedHeaders.XForwardedProto;
+        options.ForwardLimit = 1;
+        options.KnownNetworks.Clear();
+        options.KnownProxies.Clear();
+
+        foreach (var proxy in trustedProxyAddresses)
+            options.KnownProxies.Add(proxy);
+    });
+}
+
 var app = builder.Build();
 
 var veriFactuOptions = new VeriFactuOptions();
@@ -81,6 +167,11 @@ var operationsOptions = new OperationsOptions();
 app.Configuration
     .GetSection(OperationsOptions.SectionName)
     .Bind(operationsOptions);
+
+var securityOptions = new SecurityOptions();
+app.Configuration
+    .GetSection(SecurityOptions.SectionName)
+    .Bind(securityOptions);
 
 if (app.Environment.IsDevelopment() &&
     veriFactuOptions.Environment == VeriFactuEntorno.Production)
@@ -103,28 +194,60 @@ if (app.Environment.IsProduction())
             "Producción requiere VeriFactu:AllowProduction=true de forma explícita.");
     }
 
-    if (veriFactuOptions.ClientMode != "SoapClient")
+    if (!string.Equals(
+            veriFactuOptions.ClientMode,
+            "SoapClient",
+            StringComparison.OrdinalIgnoreCase))
     {
         throw new InvalidOperationException(
-            "Producción requiere VeriFactu:ClientMode=Soap.");
+            "Producción requiere VeriFactu:ClientMode=SoapClient.");
     }
 
-    if (string.IsNullOrWhiteSpace(operationsOptions.AdminApiKey) ||
-        operationsOptions.AdminApiKey.Length < 32)
+    var apiKey = securityOptions.ResolveApiKey();
+    if (apiKey.Length < 32)
     {
         throw new InvalidOperationException(
-            "Producción requiere Operations:AdminApiKey con al menos 32 caracteres, suministrada como secreto.");
+            "Producción requiere Security:ApiKey/ApiKeyFile con al menos 32 caracteres.");
+    }
+
+    var adminKey = operationsOptions.ResolveAdminApiKey();
+    if (adminKey.Length < 32)
+    {
+        throw new InvalidOperationException(
+            "Producción requiere Operations:AdminApiKey/AdminApiKeyFile con al menos 32 caracteres.");
+    }
+
+    var allowedHosts = app.Configuration["AllowedHosts"]?.Trim();
+    if (string.IsNullOrWhiteSpace(allowedHosts) || allowedHosts == "*")
+    {
+        throw new InvalidOperationException(
+            "Producción requiere AllowedHosts explícito; no se permite '*'.");
     }
 }
 
+if (trustedProxyAddresses.Length > 0)
+    app.UseForwardedHeaders();
+
+if (app.Environment.IsProduction())
+    app.UseHsts();
+
+app.UseHttpsRedirection();
+
 app.UseMiddleware<CorrelationIdMiddleware>();
-app.UseMiddleware<GlobalExceptionMiddleware>();
 
 app.UseSerilogRequestLogging(options =>
 {
     options.MessageTemplate =
         "HTTP {RequestMethod} {RequestPath} -> {StatusCode} en {Elapsed:0.0000} ms";
 });
+
+app.UseMiddleware<GlobalExceptionMiddleware>();
+app.UseRouting();
+app.UseRateLimiter();
+
+app.UseCors("Frontend");
+app.UseMiddleware<ApiKeyAuthenticationMiddleware>();
+app.UseMiddleware<IdempotencyMiddleware>();
 
 var openApiEnabled =
     app.Environment.IsDevelopment() ||
@@ -136,8 +259,6 @@ if (openApiEnabled)
     app.UseSwaggerUI();
 }
 
-app.UseHttpsRedirection();
-app.UseCors("Frontend");
 app.UseAuthorization();
 
 app.MapHealthChecks(
@@ -146,7 +267,8 @@ app.MapHealthChecks(
     {
         Predicate = _ => false,
         ResponseWriter = WriteHealthResponseAsync
-    });
+    })
+    .DisableRateLimiting();
 
 app.MapHealthChecks(
     "/health/ready",
@@ -155,7 +277,8 @@ app.MapHealthChecks(
         Predicate = registration =>
             registration.Tags.Contains("ready"),
         ResponseWriter = WriteHealthResponseAsync
-    });
+    })
+    .DisableRateLimiting();
 
 app.MapControllers();
 
@@ -186,3 +309,5 @@ static Task WriteHealthResponseAsync(
                 })
             }));
 }
+
+public partial class Program { }

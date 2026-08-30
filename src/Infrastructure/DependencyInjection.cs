@@ -12,6 +12,7 @@ using gesFactu.Infrastructure.Integrations.VeriFactu.Validation;
 using gesFactu.Infrastructure.Integrations.VeriFactu.XmlGeneration;
 using gesFactu.Infrastructure.Integrations.QRCode;
 using gesFactu.Infrastructure.Outbox;
+using gesFactu.Infrastructure.Idempotency;
 
 namespace gesFactu.Infrastructure;
 
@@ -37,6 +38,8 @@ public static class DependencyInjection
         services.AddScoped<IOutboxStore, OutboxStore>();
         services.AddScoped<IDeadLetterStore, DeadLetterStore>();
         services.AddScoped<ISubmissionAttemptStore, SubmissionAttemptStore>();
+        services.AddScoped<IAuditLogReader, AuditLogReader>();
+        services.AddScoped<IOperationalMetricsStore, OperationalMetricsStore>();
         services.AddSingleton<IHashCalculator, Sha256HashCalculator>();
         services.AddScoped<IQRCodeGenerator, QRCodeGenerator>();
         services.AddVeriFactuClient(configuration);
@@ -44,6 +47,7 @@ public static class DependencyInjection
         services.AddScoped<IRegistroAltaXmlBuilder, RegistroAltaXmlBuilderAdapter>();
         services.AddScoped<IRegistroAnulacionXmlBuilder, RegistroAnulacionXmlBuilderAdapter>();
         services.AddHostedService<OutboxProcessorService>();
+        services.AddHostedService<IdempotencyCleanupService>();
 
         return services;
     }

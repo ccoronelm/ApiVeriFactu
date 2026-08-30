@@ -13,6 +13,20 @@ public sealed class BillingTaxDetailConfiguration
         builder.HasKey(x => x.Id);
         builder.Property(x => x.Id).ValueGeneratedOnAdd();
 
+        builder.Property(x => x.CreateDate)
+            .HasDefaultValueSql("CURRENT_TIMESTAMP")
+            .ValueGeneratedOnAdd();
+        builder.Property(x => x.CreatedBy).HasMaxLength(256);
+        builder.Property(x => x.LastModifiedDate);
+        builder.Property(x => x.LastModifiedBy).HasMaxLength(256);
+        builder.Property(x => x.IsDeleted)
+            .IsRequired()
+            .HasDefaultValue(false);
+        builder.Property(x => x.DeletedAt);
+        builder.Property(x => x.DeletedBy).HasMaxLength(256);
+
+        builder.HasQueryFilter(x => !x.IsDeleted);
+
         builder.Property(x => x.TaxCode).HasMaxLength(2);
         builder.Property(x => x.RegimeCode).HasMaxLength(2);
         builder.Property(x => x.OperationQualification).HasMaxLength(2);
@@ -27,7 +41,7 @@ public sealed class BillingTaxDetailConfiguration
         builder.HasOne(x => x.BillingRecord)
             .WithMany(x => x.TaxDetails)
             .HasForeignKey(x => x.BillingRecordId)
-            .OnDelete(DeleteBehavior.Cascade);
+            .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasIndex(x => new { x.BillingRecordId, x.Id })
             .HasDatabaseName("IX_BillingTaxDetails_Record_Order");

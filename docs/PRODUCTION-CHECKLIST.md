@@ -101,3 +101,18 @@ No activar `AllowProduction=true` antes de completar este checklist.
 Si el despliegue falla antes de remitir registros: volver a la versión anterior, conservar PostgreSQL y Outbox y no borrar mensajes pendientes.
 
 Si el fallo ocurre después de una llamada AEAT incierta: no crear manualmente un segundo registro; revisar SubmissionAttempt, Outbox y AEAT; permitir la reconciliación de duplicados 3000; usar DLQ/requeue sólo después de entender el estado externo.
+
+## 11. Gate adicional de seguridad e integridad
+
+- `Security:ApiKey` o `Security:ApiKeyFile` >= 32 caracteres;
+- `Operations:AdminApiKey` o `AdminApiKeyFile` >= 32 caracteres y diferente;
+- `AllowedHosts` explícito, nunca `*`;
+- API y PostgreSQL no expuestos directamente a Internet;
+- `Idempotency-Key` probado en retries;
+- `AuditLogs` append-only;
+- borrado/modificación fiscal bloqueados;
+- FK fiscales en `RESTRICT`;
+- `Api.Tests` verdes;
+- imagen Docker Linux construida por CI;
+- backup restaurado en una base temporal;
+- `GET /api/v1/operations/metrics` revisado antes del go-live.

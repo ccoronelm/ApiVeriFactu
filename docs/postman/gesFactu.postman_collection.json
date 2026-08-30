@@ -36,6 +36,18 @@
     {
       "key": "recipientName",
       "value": ""
+    },
+    {
+      "key": "apiKey",
+      "value": ""
+    },
+    {
+      "key": "idempotencyKey",
+      "value": "{{$guid}}"
+    },
+    {
+      "key": "actor",
+      "value": "postman"
     }
   ],
   "item": [
@@ -46,14 +58,20 @@
           "name": "Live",
           "request": {
             "method": "GET",
-            "url": "{{baseUrl}}/health/live"
+            "url": "{{baseUrl}}/health/live",
+            "auth": {
+              "type": "noauth"
+            }
           }
         },
         {
           "name": "Ready",
           "request": {
             "method": "GET",
-            "url": "{{baseUrl}}/health/ready"
+            "url": "{{baseUrl}}/health/ready",
+            "auth": {
+              "type": "noauth"
+            }
           }
         }
       ]
@@ -69,6 +87,16 @@
               {
                 "key": "Content-Type",
                 "value": "application/json"
+              },
+              {
+                "key": "X-GesFactu-Actor",
+                "value": "{{actor}}",
+                "type": "text"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{idempotencyKey}}",
+                "type": "text"
               }
             ],
             "body": {
@@ -82,35 +110,75 @@
           "name": "Get",
           "request": {
             "method": "GET",
-            "url": "{{baseUrl}}/api/v1/BillingRecords/{{billingRecordId}}"
+            "url": "{{baseUrl}}/api/v1/BillingRecords/{{billingRecordId}}",
+            "header": [
+              {
+                "key": "X-GesFactu-Actor",
+                "value": "{{actor}}",
+                "type": "text"
+              }
+            ]
           }
         },
         {
           "name": "Submit AEAT",
           "request": {
             "method": "POST",
-            "url": "{{baseUrl}}/api/v1/BillingRecords/{{billingRecordId}}/submit"
+            "url": "{{baseUrl}}/api/v1/BillingRecords/{{billingRecordId}}/submit",
+            "header": [
+              {
+                "key": "X-GesFactu-Actor",
+                "value": "{{actor}}",
+                "type": "text"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{idempotencyKey}}",
+                "type": "text"
+              }
+            ]
           }
         },
         {
           "name": "QR PNG",
           "request": {
             "method": "GET",
-            "url": "{{baseUrl}}/api/v1/BillingRecords/{{billingRecordId}}/qr"
+            "url": "{{baseUrl}}/api/v1/BillingRecords/{{billingRecordId}}/qr",
+            "header": [
+              {
+                "key": "X-GesFactu-Actor",
+                "value": "{{actor}}",
+                "type": "text"
+              }
+            ]
           }
         },
         {
           "name": "QR URL",
           "request": {
             "method": "GET",
-            "url": "{{baseUrl}}/api/v1/BillingRecords/{{billingRecordId}}/qr/url"
+            "url": "{{baseUrl}}/api/v1/BillingRecords/{{billingRecordId}}/qr/url",
+            "header": [
+              {
+                "key": "X-GesFactu-Actor",
+                "value": "{{actor}}",
+                "type": "text"
+              }
+            ]
           }
         },
         {
           "name": "Submission attempts",
           "request": {
             "method": "GET",
-            "url": "{{baseUrl}}/api/v1/BillingRecords/{{billingRecordId}}/submission-attempts"
+            "url": "{{baseUrl}}/api/v1/BillingRecords/{{billingRecordId}}/submission-attempts",
+            "header": [
+              {
+                "key": "X-GesFactu-Actor",
+                "value": "{{actor}}",
+                "type": "text"
+              }
+            ]
           }
         }
       ]
@@ -122,14 +190,28 @@
           "name": "Query records",
           "request": {
             "method": "GET",
-            "url": "{{baseUrl}}/api/v1/aeat/records?fiscalYear=2026&period=08&showIssuerName=true"
+            "url": "{{baseUrl}}/api/v1/aeat/records?fiscalYear=2026&period=08&showIssuerName=true",
+            "header": [
+              {
+                "key": "X-GesFactu-Actor",
+                "value": "{{actor}}",
+                "type": "text"
+              }
+            ]
           }
         },
         {
           "name": "Configured taxpayers",
           "request": {
             "method": "GET",
-            "url": "{{baseUrl}}/api/v1/taxpayers"
+            "url": "{{baseUrl}}/api/v1/taxpayers",
+            "header": [
+              {
+                "key": "X-GesFactu-Actor",
+                "value": "{{actor}}",
+                "type": "text"
+              }
+            ]
           }
         }
       ]
@@ -145,6 +227,11 @@
               {
                 "key": "X-GesFactu-Admin-Key",
                 "value": "{{adminApiKey}}",
+                "type": "text"
+              },
+              {
+                "key": "X-GesFactu-Actor",
+                "value": "{{actor}}",
                 "type": "text"
               }
             ],
@@ -164,6 +251,16 @@
               {
                 "key": "Content-Type",
                 "value": "application/json"
+              },
+              {
+                "key": "X-GesFactu-Actor",
+                "value": "{{actor}}",
+                "type": "text"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{idempotencyKey}}",
+                "type": "text"
               }
             ],
             "body": {
@@ -172,8 +269,66 @@
             },
             "url": "{{baseUrl}}/api/v1/operations/dead-letters/{{dlqId}}/requeue"
           }
+        },
+        {
+          "name": "Audit log",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-GesFactu-Admin-Key",
+                "value": "{{adminApiKey}}",
+                "type": "text"
+              },
+              {
+                "key": "X-GesFactu-Actor",
+                "value": "{{actor}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/operations/audit?take=100"
+          }
+        },
+        {
+          "name": "Operational metrics",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-GesFactu-Admin-Key",
+                "value": "{{adminApiKey}}",
+                "type": "text"
+              },
+              {
+                "key": "X-GesFactu-Actor",
+                "value": "{{actor}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/operations/metrics"
+          }
         }
       ]
     }
-  ]
+  ],
+  "auth": {
+    "type": "apikey",
+    "apikey": [
+      {
+        "key": "key",
+        "value": "X-GesFactu-Api-Key",
+        "type": "string"
+      },
+      {
+        "key": "value",
+        "value": "{{apiKey}}",
+        "type": "string"
+      },
+      {
+        "key": "in",
+        "value": "header",
+        "type": "string"
+      }
+    ]
+  }
 }
