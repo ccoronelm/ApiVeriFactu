@@ -80,6 +80,46 @@ public sealed class VeriFactuQueryXmlCodecTests
     }
 
     [Fact]
+    public void BuildRequest_RangoMismoDia_SeRechazaAntesDeLlamarAAeat()
+    {
+        var date = new DateOnly(2026, 8, 30);
+
+        var request = new VeriFactuQueryRequest
+        {
+            TaxpayerNif = Nif,
+            TaxpayerName = "EMISOR PRUEBAS",
+            FiscalYear = "2026",
+            Period = "08",
+            IssueDateFrom = date,
+            IssueDateTo = date
+        };
+
+        var ex = Assert.Throws<ArgumentException>(
+            () => VeriFactuQueryXmlCodec.BuildRequest(request));
+
+        Assert.Contains(
+            "IssueDateFrom debe ser anterior a IssueDateTo",
+            ex.Message);
+    }
+
+    [Fact]
+    public void BuildRequest_RangoInvertido_SeRechazaAntesDeLlamarAAeat()
+    {
+        var request = new VeriFactuQueryRequest
+        {
+            TaxpayerNif = Nif,
+            TaxpayerName = "EMISOR PRUEBAS",
+            FiscalYear = "2026",
+            Period = "08",
+            IssueDateFrom = new DateOnly(2026, 8, 31),
+            IssueDateTo = new DateOnly(2026, 8, 30)
+        };
+
+        Assert.Throws<ArgumentException>(
+            () => VeriFactuQueryXmlCodec.BuildRequest(request));
+    }
+
+    [Fact]
     public async Task ResponseFixture_ValidaRespuestaConsultaLrOficial()
     {
         var validator = new XmlSchemaValidator(

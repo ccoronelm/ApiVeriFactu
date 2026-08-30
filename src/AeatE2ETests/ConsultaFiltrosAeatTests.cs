@@ -127,8 +127,8 @@ public sealed class ConsultaFiltrosAeatTests
                     InvoiceNumber = fullNumber,
                     CounterpartyNif = ctx.Settings.RecipientNif,
                     CounterpartyName = ctx.Settings.RecipientName,
-                    IssueDateFrom = issueDate,
-                    IssueDateTo = issueDate,
+                    IssueDateFrom = issueDate.AddDays(-1),
+                    IssueDateTo = issueDate.AddDays(1),
                     System = new VeriFactuSystemFilter
                     {
                         ProducerName =
