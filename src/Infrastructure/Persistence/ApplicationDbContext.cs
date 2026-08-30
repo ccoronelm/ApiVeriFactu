@@ -95,6 +95,7 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
         var now = DateTime.UtcNow;
         PrepareTrackedEntities(now);
         ValidateFiscalImmutability();
+        ValidateAuditLogAppendOnly();
 
         var auditEntries = CaptureAuditEntries(now);
 
@@ -208,6 +209,16 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
                     "El desglose fiscal persistido es inmutable. " +
                     "Cree una subsanación o rectificación en lugar de modificarlo.");
             }
+        }
+    }
+
+    private void ValidateAuditLogAppendOnly()
+    {
+        if (ChangeTracker.Entries<AuditLog>().Any(x =>
+                x.State is EntityState.Modified or EntityState.Deleted))
+        {
+            throw new InvalidOperationException(
+                "AuditLog es append-only y no admite modificación ni borrado.");
         }
     }
 
