@@ -10,7 +10,7 @@ Infrastructure implements technical concerns and Application/Domain ports.
 Allowed concerns include:
 
 - EF Core
-- SQL Server / configured relational provider
+- PostgreSQL (Npgsql)
 - migrations
 - repositories when justified
 - AEAT SOAP integration
