@@ -128,6 +128,9 @@ public sealed class RegistroAltaXmlBuilderAdapter : IRegistroAltaXmlBuilder
                     ns + "FechaExpedicionFactura",
                     RegistroAltaXmlBuilder.FormatFechaAeat(data.IssueDate))),
             new XElement(ns + "NombreRazonEmisor", taxpayer.Name),
+            data.IsSubsanacion
+                ? new XElement(ns + "Subsanacion", "S")
+                : null,
             new XElement(ns + "TipoFactura", data.TipoFactura),
             new XElement(ns + "DescripcionOperacion", data.Description),
             new XElement(
