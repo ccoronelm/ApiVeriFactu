@@ -93,18 +93,27 @@ public sealed class CreateBillingRecordSubsanationCommandHandler
         if (string.IsNullOrWhiteSpace(description) || description.Length > 500)
             return Validation(nameof(command.Description), "La descripción es obligatoria y no puede superar 500 caracteres.");
 
-        var totalAmountResult = Money.Create(totalAmountValue);
+        var totalAmountResult = source.InvoiceType is "R1" or "R2" or "R3" or "R4" or "R5"
+            ? Money.CreateSigned(totalAmountValue)
+            : Money.Create(totalAmountValue);
         if (totalAmountResult is ValueObjectResult<Money>.ValidationError totalError)
             return Validation(nameof(command.TotalAmount), totalError.Message);
         var totalAmount = ((ValueObjectResult<Money>.SuccessWithValue)totalAmountResult).Value;
 
-        var taxAmountResult = Money.Create(totalTaxAmountValue);
+        var taxAmountResult = source.InvoiceType is "R1" or "R2" or "R3" or "R4" or "R5"
+            ? Money.CreateSigned(totalTaxAmountValue)
+            : Money.Create(totalTaxAmountValue);
         if (taxAmountResult is ValueObjectResult<Money>.ValidationError taxError)
             return Validation(nameof(command.TotalTaxAmount), taxError.Message);
         var totalTaxAmount = ((ValueObjectResult<Money>.SuccessWithValue)taxAmountResult).Value;
 
-        if (totalTaxAmount.Amount > totalAmount.Amount)
-            return Validation(nameof(command.TotalTaxAmount), "La cuota de impuesto no puede ser mayor que el importe total.");
+        if (source.InvoiceType is "F1" or "F2" &&
+            totalTaxAmount.Amount > totalAmount.Amount)
+        {
+            return Validation(
+                nameof(command.TotalTaxAmount),
+                "La cuota de impuesto no puede ser mayor que el importe total.");
+        }
 
         var seriesResult = InvoiceSeries.Create(source.InvoiceSeries);
         if (seriesResult is ValueObjectResult<InvoiceSeries>.ValidationError seriesError)
@@ -127,6 +136,40 @@ public sealed class CreateBillingRecordSubsanationCommandHandler
 
         var identifier =
             ((ValueObjectResult<InvoiceIdentifier>.SuccessWithValue)identifierResult).Value;
+
+        IReadOnlyList<BillingTaxDetailInput>? requestedTaxDetails = command.TaxDetails;
+        if (requestedTaxDetails is null &&
+            totalAmountValue == source.TotalAmount &&
+            totalTaxAmountValue == source.TotalTaxAmount &&
+            source.TaxDetails.Count > 0)
+        {
+            requestedTaxDetails = source.TaxDetails
+                .OrderBy(x => x.Id)
+                .Select(x => new BillingTaxDetailInput(
+                    x.TaxCode,
+                    x.RegimeCode,
+                    x.OperationQualification,
+                    x.ExemptionCause,
+                    x.TaxRate,
+                    x.TaxBase,
+                    x.TaxAmount,
+                    x.EquivalenceSurchargeRate,
+                    x.EquivalenceSurchargeAmount))
+                .ToArray();
+        }
+
+        IReadOnlyList<BillingTaxDetail> taxDetails;
+        try
+        {
+            taxDetails = BillingTaxDetailFactory.Create(
+                requestedTaxDetails,
+                totalAmount.Amount,
+                totalTaxAmount.Amount);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Validation(nameof(command.TaxDetails), ex.Message);
+        }
 
         try
         {
@@ -177,6 +220,7 @@ public sealed class CreateBillingRecordSubsanationCommandHandler
                 registerTimestamp,
                 source.InvoiceType);
 
+            subsanation.SetTaxDetails(taxDetails);
             subsanation.SubsanatesBillingRecordId = source.Id;
 
             var hashInput = new BillingRecordHashInput
