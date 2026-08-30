@@ -1,7 +1,7 @@
 namespace gesFactu.Application.Common.Abstractions;
 
 /// <summary>
-/// Puerto para validación de esquemas XML (XSD) conforme a AEAT.
+/// Puerto para validaciÃ³n de esquemas XML (XSD) conforme a AEAT.
 /// 
 /// Garantiza que los registros cumplen exactamente con la estructura AEAT.
 /// </summary>
@@ -12,8 +12,8 @@ public interface IXmlSchemaValidator
     /// </summary>
     /// <param name="xmlContent">Contenido XML a validar</param>
     /// <param name="schemaType">Tipo de esquema (RegistroFacturacion, RegistroAnulacion, etc.)</param>
-    /// <param name="cancellationToken">Token de cancelación</param>
-    /// <returns>Resultado de validación con errores si las hay</returns>
+    /// <param name="cancellationToken">Token de cancelaciÃ³n</param>
+    /// <returns>Resultado de validaciÃ³n con errores si las hay</returns>
     Task<XmlValidationResult> ValidateAsync(
         string xmlContent,
         VeriFactuXmlSchemaType schemaType,
@@ -21,19 +21,19 @@ public interface IXmlSchemaValidator
 }
 
 /// <summary>
-/// Tipos de esquemas soportados para validación.
+/// Tipos de esquemas soportados para validaciÃ³n.
 /// 
 /// Ref: /VERIFACTU - Archivos .xsd
 /// </summary>
 public enum VeriFactuXmlSchemaType
 {
     /// <summary>
-    /// Registro de facturación (SuministroInformacion.xsd)
+    /// Registro de facturaciÃ³n (SuministroInformacion.xsd)
     /// </summary>
     BillingRecord,
 
     /// <summary>
-    /// Registro de anulación (SuministroLR.xsd)
+    /// Registro de anulaciÃ³n (SuministroLR.xsd)
     /// </summary>
     CancellationRecord,
 
@@ -43,49 +43,54 @@ public enum VeriFactuXmlSchemaType
     QueryRecord,
 
     /// <summary>
-    /// Respuesta de suminist (RespuestaSuministro.xsd)
+    /// Respuesta de suministro (RespuestaSuministro.xsd)
     /// </summary>
-    SubmissionResponse
+    SubmissionResponse,
+
+    /// <summary>
+    /// Respuesta de consulta (RespuestaConsultaLR.xsd)
+    /// </summary>
+    QueryResponse
 }
 
 /// <summary>
-/// Resultado de la validación XSD.
+/// Resultado de la validaciÃ³n XSD.
 /// </summary>
 public record XmlValidationResult
 {
     /// <summary>
-    /// Indica si el documento es válido según el esquema.
+    /// Indica si el documento es vÃ¡lido segÃºn el esquema.
     /// </summary>
     public required bool IsValid { get; init; }
 
     /// <summary>
-    /// Lista de errores encontrados (vacía si IsValid=true).
+    /// Lista de errores encontrados (vacÃ­a si IsValid=true).
     /// </summary>
     public required List<ValidationError> Errors { get; init; }
 
     /// <summary>
-    /// Lista de advertencias (validaciones no críticas).
+    /// Lista de advertencias (validaciones no crÃ­ticas).
     /// </summary>
     public List<string> Warnings { get; init; } = new();
 }
 
 /// <summary>
-/// Detalles de un error de validación XSD.
+/// Detalles de un error de validaciÃ³n XSD.
 /// </summary>
 public record ValidationError
 {
     /// <summary>
-    /// Descripción del error.
+    /// DescripciÃ³n del error.
     /// </summary>
     public required string Message { get; init; }
 
     /// <summary>
-    /// Número de línea en el XML (si está disponible).
+    /// NÃºmero de lÃ­nea en el XML (si estÃ¡ disponible).
     /// </summary>
     public int? LineNumber { get; init; }
 
     /// <summary>
-    /// Número de columna en el XML.
+    /// NÃºmero de columna en el XML.
     /// </summary>
     public int? LinePosition { get; init; }
 }
