@@ -151,9 +151,19 @@ public record Money
         if (amount < 0)
             return new ValueObjectResult<Money>.ValidationError(nameof(Money), "El importe no puede ser negativo");
 
-        // Máximo 2 decimales para EUR
+        return CreateSigned(amount);
+    }
+
+    /// <summary>
+    /// Crea un importe con signo. VERI*FACTU admite importes negativos,
+    /// entre otros casos, en facturas rectificativas.
+    /// </summary>
+    public static ValueObjectResult<Money> CreateSigned(decimal amount)
+    {
         if (decimal.Round(amount, 2) != amount)
-            return new ValueObjectResult<Money>.ValidationError(nameof(Money), "El importe no puede tener más de 2 decimales");
+            return new ValueObjectResult<Money>.ValidationError(
+                nameof(Money),
+                "El importe no puede tener más de 2 decimales");
 
         return new ValueObjectResult<Money>.SuccessWithValue(new Money(amount));
     }
