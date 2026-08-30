@@ -164,6 +164,31 @@ public sealed class BillingRecordRepositoryTests : IDisposable
     }
 
     [Fact]
+    public async Task GetByFiscalIdentityAsync_DevuelveAltaInicialAunqueExistaSubsanacion()
+    {
+        var date = new DateOnly(2026, 8, 30);
+        var original = CreateRecord("12345678A", "FAC/", "0008", date);
+
+        await _repository.AddAsync(original);
+        await _dbContext.SaveChangesAsync();
+
+        var subsanation = CreateRecord("12345678A", "FAC/", "0008", date);
+        subsanation.SubsanatesBillingRecordId = original.Id;
+
+        await _repository.AddAsync(subsanation);
+        await _dbContext.SaveChangesAsync();
+
+        var found = await _repository.GetByFiscalIdentityAsync(
+            "12345678A",
+            "FAC/0008",
+            date);
+
+        Assert.NotNull(found);
+        Assert.Equal(original.Id, found.Id);
+        Assert.Null(found.SubsanatesBillingRecordId);
+    }
+
+    [Fact]
     public async Task ListByIssuerAsync_FiltersIssuerBeforePaging()
     {
         await _repository.AddAsync(CreateRecord("12345678A", "A/", "001"));
