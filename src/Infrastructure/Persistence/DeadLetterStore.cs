@@ -73,6 +73,14 @@ public class DeadLetterStore : IDeadLetterStore
             .ToListAsync(cancellationToken);
     }
 
+    public Task<DeadLetterMessage?> GetByIdAsync(
+        Guid dlqMessageId,
+        CancellationToken cancellationToken)
+        => _dbContext.DeadLetterMessages
+            .FirstOrDefaultAsync(
+                x => x.Id == dlqMessageId,
+                cancellationToken);
+
     public async Task MarkAsReviewedAsync(
         Guid dlqMessageId,
         string? notes,
