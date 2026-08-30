@@ -80,9 +80,37 @@ public sealed class EnviarRegistroAEATCommandHandler
 
         try
         {
+            BillingRecord? previousRecord = null;
+
+            if (record.PreviousBillingRecordId.HasValue)
+            {
+                previousRecord = await _repository.GetByIdAsync(
+                    record.PreviousBillingRecordId.Value,
+                    cancellationToken);
+
+                if (previousRecord is null ||
+                    string.IsNullOrWhiteSpace(record.PreviousRecordHash) ||
+                    !string.Equals(
+                        previousRecord.ComputedHash,
+                        record.PreviousRecordHash,
+                        StringComparison.Ordinal))
+                {
+                    return new Result<EnviarRegistroAEATResponse>.DomainError(
+                        "BROKEN_CHAIN",
+                        "No se puede reconstruir de forma íntegra el RegistroAnterior del encadenamiento.");
+                }
+            }
+            else if (!string.IsNullOrWhiteSpace(record.PreviousRecordHash))
+            {
+                return new Result<EnviarRegistroAEATResponse>.DomainError(
+                    "BROKEN_CHAIN",
+                    "El registro tiene huella anterior pero no referencia al RF anterior.");
+            }
+
             var request = BillingRecordToVeriFactuMapper.MapToSubmissionRequest(
                 record,
-                _xmlBuilder);
+                _xmlBuilder,
+                previousRecord);
 
             var validation = await _xmlSchemaValidator.ValidateAsync(
                 request.SignedXmlContent,
