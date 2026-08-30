@@ -280,6 +280,23 @@ public class BillingRecord : BaseDomainModel
         ComputedHash = hash;
     }
 
+    public virtual ICollection<BillingTaxDetail> TaxDetails { get; set; } =
+        new HashSet<BillingTaxDetail>();
+
     public virtual ICollection<SubmissionAttempt> SubmissionAttempts { get; set; } =
         new HashSet<SubmissionAttempt>();
+
+    public void SetTaxDetails(IEnumerable<BillingTaxDetail> details)
+    {
+        ArgumentNullException.ThrowIfNull(details);
+
+        var normalized = details.ToList();
+        if (normalized.Count is < 1 or > 12)
+            throw new InvalidOperationException(
+                "VERI*FACTU requiere entre 1 y 12 detalles de desglose.");
+
+        TaxDetails.Clear();
+        foreach (var detail in normalized)
+            TaxDetails.Add(detail);
+    }
 }
