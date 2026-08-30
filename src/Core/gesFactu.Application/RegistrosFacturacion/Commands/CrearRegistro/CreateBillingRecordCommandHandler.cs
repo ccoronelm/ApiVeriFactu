@@ -8,8 +8,9 @@ using gesFactu.Domain.ValueObjects;
 namespace gesFactu.Application.RegistrosFacturacion.Commands.CrearRegistro;
 
 /// <summary>
-/// Handler para crear un nuevo registro de facturación.
-/// Orquesta validación, generación del timestamp fiscal, cálculo de huella y persistencia.
+/// Crea un RegistroAlta y resuelve internamente su encadenamiento VERI*FACTU.
+/// La selección del RF anterior y la inserción del nuevo RF se ejecutan dentro
+/// de una transacción SERIALIZABLE para proteger la secuencia frente a concurrencia.
 /// </summary>
 public sealed class CreateBillingRecordCommandHandler
     : IRequestHandler<CreateBillingRecordCommand, Result<CreateBillingRecordResponse>>
@@ -35,12 +36,6 @@ public sealed class CreateBillingRecordCommandHandler
         CreateBillingRecordCommand command,
         CancellationToken cancellationToken)
     {
-        _logger.LogInformation(
-            "Creando registro de facturación para factura {Series}/{Number} del contribuyente {Nif}",
-            command.InvoiceSeries,
-            command.InvoiceNumber,
-            command.IssuerNif);
-
         var nifResult = TaxpayerNif.Create(command.IssuerNif);
         if (nifResult is ValueObjectResult<TaxpayerNif>.ValidationError nifError)
         {
@@ -71,6 +66,14 @@ public sealed class CreateBillingRecordCommandHandler
 
         var number = ((ValueObjectResult<InvoiceNumber>.SuccessWithValue)numberResult).Value;
 
+        var fiscalInvoiceNumber = series.Value.Trim() + number.Value.Trim();
+        if (fiscalInvoiceNumber.Length > 60)
+        {
+            return new Result<CreateBillingRecordResponse>.ValidationError(
+                nameof(command.InvoiceNumber),
+                "La combinación serie+número (NumSerieFactura) no puede superar 60 caracteres.");
+        }
+
         if (!DateTime.TryParseExact(
                 command.IssueDate,
                 "dd-MM-yyyy",
@@ -85,7 +88,12 @@ public sealed class CreateBillingRecordCommandHandler
 
         var issueDate = DateOnly.FromDateTime(issueDateTime);
 
-        var identifierResult = InvoiceIdentifier.Create(nif, series, number, issueDate);
+        var identifierResult = InvoiceIdentifier.Create(
+            nif,
+            series,
+            number,
+            issueDate);
+
         if (identifierResult is ValueObjectResult<InvoiceIdentifier>.ValidationError identifierError)
         {
             return new Result<CreateBillingRecordResponse>.ValidationError(
@@ -120,8 +128,40 @@ public sealed class CreateBillingRecordCommandHandler
 
         try
         {
-            // Este valor se genera una sola vez y se persiste.
-            // El mismo valor se usa tanto en la huella como en FechaHoraHusoGenRegistro del XML.
+            await using var transaction =
+                await _dbContext.BeginSerializableTransactionAsync(cancellationToken);
+
+            // Idempotencia por la identidad fiscal que se envía a AEAT.
+            var existing = await _repository.GetByFiscalIdentityAsync(
+                nif.Value,
+                fiscalInvoiceNumber,
+                issueDate,
+                cancellationToken);
+
+            if (existing is not null)
+            {
+                await transaction.RollbackAsync(cancellationToken);
+
+                return new Result<CreateBillingRecordResponse>.IdempotencyConflictError(
+                    $"Ya existe un registro para la factura {nif.Value}/{fiscalInvoiceNumber}/{command.IssueDate}.");
+            }
+
+            // VERI*FACTU encadena contra el RF inmediatamente anterior generado
+            // por el mismo SIF para este obligado tributario, sin separar por serie.
+            var previousRecord = await _repository.GetLastGeneratedRecordAsync(
+                nif.Value,
+                cancellationToken);
+
+            if (previousRecord is not null &&
+                string.IsNullOrWhiteSpace(previousRecord.ComputedHash))
+            {
+                await transaction.RollbackAsync(cancellationToken);
+
+                return new Result<CreateBillingRecordResponse>.DomainError(
+                    "BROKEN_CHAIN",
+                    "El último registro generado no tiene huella y no se puede encadenar el siguiente.");
+            }
+
             var registerTimestamp = DateTimeOffset.Now.ToString(
                 "yyyy-MM-ddTHH:mm:sszzz",
                 System.Globalization.CultureInfo.InvariantCulture);
@@ -132,7 +172,8 @@ public sealed class CreateBillingRecordCommandHandler
                 command.Description,
                 totalAmount,
                 totalTaxAmount,
-                command.PreviousRecordHash,
+                previousRecord?.Id,
+                previousRecord?.ComputedHash,
                 registerTimestamp);
 
             var hashInput = new BillingRecordHashInput
@@ -150,20 +191,22 @@ public sealed class CreateBillingRecordCommandHandler
                 RegisterTimestamp = billingRecord.RegisterTimestamp
             };
 
-            var calculatedHash = _hashCalculator.CalculateChainHash(hashInput);
-            billingRecord.SetComputedHash(calculatedHash);
+            billingRecord.SetComputedHash(
+                _hashCalculator.CalculateChainHash(hashInput));
 
             await _repository.AddAsync(billingRecord, cancellationToken);
             await _dbContext.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
 
             _logger.LogInformation(
-                "Registro de facturación creado: {RecordId} con hash {Hash}",
+                "Registro {RecordId} creado. PreviousRecordId={PreviousRecordId}, Hash={Hash}",
                 billingRecord.Id,
-                calculatedHash);
+                billingRecord.PreviousBillingRecordId,
+                billingRecord.ComputedHash);
 
             var response = new CreateBillingRecordResponse(
                 billingRecord.Id,
-                $"{identifier.IssuerNif.Value}/{identifier.Series.Value}-{identifier.Number.Value}",
+                $"{identifier.IssuerNif.Value}/{fiscalInvoiceNumber}",
                 billingRecord.Status,
                 billingRecord.ComputedHash,
                 billingRecord.CreateDate ?? DateTime.UtcNow);
@@ -173,6 +216,7 @@ public sealed class CreateBillingRecordCommandHandler
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error al crear registro de facturación");
+
             return new Result<CreateBillingRecordResponse>.UnexpectedError(
                 $"Error al crear el registro: {ex.Message}");
         }
