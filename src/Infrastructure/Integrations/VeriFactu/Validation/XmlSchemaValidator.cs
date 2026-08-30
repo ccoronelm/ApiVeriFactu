@@ -222,14 +222,12 @@ public sealed class XmlSchemaValidator : IXmlSchemaValidator
         string targetNamespace,
         List<ValidationError> loadErrors)
     {
+        // La ruta base es deliberadamente única. Los XSD oficiales se copian
+        // al output/publish; si faltan allí, la validación debe fallar cerrada.
         var candidates = new[]
         {
-            Path.Combine(_xsdBasePath, xsdFileName),
-            Path.Combine(Directory.GetCurrentDirectory(), "VERIFACTU", xsdFileName)
-        }
-        .Select(Path.GetFullPath)
-        .Distinct(StringComparer.OrdinalIgnoreCase)
-        .ToArray();
+            Path.GetFullPath(Path.Combine(_xsdBasePath, xsdFileName))
+        };
 
         var found = candidates.FirstOrDefault(File.Exists);
         if (found is null)
