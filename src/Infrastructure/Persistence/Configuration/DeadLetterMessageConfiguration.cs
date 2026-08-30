@@ -5,7 +5,7 @@ using gesFactu.Domain.Entities;
 namespace gesFactu.Infrastructure.Persistence.Configuration;
 
 /// <summary>
-/// Configuración de EF Core para DeadLetterMessage.
+/// ConfiguraciÃ³n de EF Core para DeadLetterMessage.
 /// </summary>
 public class DeadLetterMessageConfiguration : IEntityTypeConfiguration<DeadLetterMessage>
 {
@@ -27,14 +27,14 @@ public class DeadLetterMessageConfiguration : IEntityTypeConfiguration<DeadLette
 
         builder.Property(x => x.Payload)
             .IsRequired()
-            .HasColumnType("nvarchar(max)");
+            .HasColumnType("text");
 
         builder.Property(x => x.FailureReason)
             .IsRequired()
             .HasMaxLength(1000);
 
         builder.Property(x => x.LastErrorResponse)
-            .HasColumnType("nvarchar(max)");
+            .HasColumnType("text");
 
         builder.Property(x => x.ProcessingAttempts)
             .IsRequired();
@@ -52,7 +52,7 @@ public class DeadLetterMessageConfiguration : IEntityTypeConfiguration<DeadLette
         builder.Property(x => x.ReviewNotes)
             .HasMaxLength(2000);
 
-        // Índices para queries frecuentes
+        // Ãndices para queries frecuentes
         builder.HasIndex(x => x.CorrelationId)
             .IsUnique()
             .HasDatabaseName("IX_DeadLetterMessages_CorrelationId");

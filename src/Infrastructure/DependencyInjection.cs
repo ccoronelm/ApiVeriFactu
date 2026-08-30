@@ -21,55 +21,29 @@ public static class DependencyInjection
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        // Persistencia - EF Core con SQL Server
+        // Persistencia - EF Core con PostgreSQL
         services.AddDbContext<ApplicationDbContext>(options =>
         {
             var connectionString = configuration.GetConnectionString("DefaultConnection")
                 ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
 
-            options.UseSqlServer(connectionString);
+            options.UseNpgsql(connectionString);
         });
 
-        // Puerto de persistencia
         services.AddScoped<IApplicationDbContext>(provider =>
             provider.GetRequiredService<ApplicationDbContext>());
 
-        // Repositorios
         services.AddScoped<IBillingRecordRepository, BillingRecordRepository>();
-
-        // Outbox store para procesamiento confiable
         services.AddScoped<IOutboxStore, OutboxStore>();
-
-        // Dead letter store para mensajes irrecuperables
         services.AddScoped<IDeadLetterStore, DeadLetterStore>();
-
-        // Submission attempt store para auditoría
         services.AddScoped<ISubmissionAttemptStore, SubmissionAttemptStore>();
-
-        // Hash calculation (SHA256 para VERI*FACTU)
         services.AddSingleton<IHashCalculator, Sha256HashCalculator>();
-
-        // QR Code generator
         services.AddScoped<IQRCodeGenerator, QRCodeGenerator>();
-
-        // Cliente AEAT: configurable (stub en desarrollo, SOAP real con ClientMode=SoapClient)
         services.AddVeriFactuClient(configuration);
-
-        // Validación XSD real contra esquemas oficiales AEAT
-        // Ref: /VERIFACTU/SuministroLR.xsd.xml, SuministroInformacion.xsd.xml
         services.AddScoped<IXmlSchemaValidator, XmlSchemaValidator>();
-
-        // Generador de XML conforme a XSD oficial AEAT (RegistroAlta)
-        // NOTA: IXmlSignatureService eliminado — VERI*FACTU (modalidad sistema verificable)
-        // NO requiere firma XAdES del XML. El campo ds:Signature es opcional (minOccurs=0).
-        // La autenticación con AEAT se realiza mediante mTLS (certificado en capa HTTPS).
-        // Ref: /VERIFACTU/SuministroInformacion.xsd.xml — ds:Signature minOccurs=0
         services.AddScoped<IRegistroAltaXmlBuilder, RegistroAltaXmlBuilderAdapter>();
-
-        // Servicio background para procesar outbox
         services.AddHostedService<OutboxProcessorService>();
 
         return services;
     }
 }
-

@@ -33,11 +33,11 @@ public sealed class OutboxMessageConfiguration : IEntityTypeConfiguration<Outbox
 
         builder.Property(e => e.Payload)
             .IsRequired()
-            .HasColumnType("nvarchar(max)");
+            .HasColumnType("text");
 
         builder.Property(e => e.CreatedAt)
             .IsRequired()
-            .HasDefaultValueSql("GETUTCDATE()");
+            .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
         builder.Property(e => e.ProcessedAt);
 
@@ -46,7 +46,7 @@ public sealed class OutboxMessageConfiguration : IEntityTypeConfiguration<Outbox
             .HasDefaultValue(0);
 
         builder.Property(e => e.LastProcessingError)
-            .HasColumnType("nvarchar(max)");
+            .HasColumnType("text");
 
         builder.Property(e => e.IsProcessed)
             .IsRequired()

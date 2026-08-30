@@ -10,13 +10,13 @@ using Xunit;
 namespace gesFactu.Infrastructure.Tests.Concurrency;
 
 /// <summary>
-/// Pruebas relacionales contra SQL Server de las dos garantías críticas:
+/// Pruebas relacionales contra PostgreSQL de las dos garantías críticas:
 /// - un único avance de cadena por obligado tributario;
 /// - idempotencia de la identidad fiscal bajo peticiones concurrentes.
 /// </summary>
 public sealed class BillingRecordChainingConcurrencyTests
 {
-    [SqlServerFact]
+    [PostgreSqlFact]
     public async Task ConcurrentCreation_ProducesSingleOrderedChainAcrossSeries()
     {
         var connectionString = await CreateDatabaseAsync();
@@ -83,7 +83,7 @@ public sealed class BillingRecordChainingConcurrencyTests
         }
     }
 
-    [SqlServerFact]
+    [PostgreSqlFact]
     public async Task ConcurrentDuplicateFiscalIdentity_CreatesOnlyOneRecord()
     {
         var connectionString = await CreateDatabaseAsync();
@@ -143,7 +143,7 @@ public sealed class BillingRecordChainingConcurrencyTests
     private static ApplicationDbContext CreateContext(string connectionString)
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
-            .UseSqlServer(connectionString)
+            .UseNpgsql(connectionString)
             .Options;
 
         return new ApplicationDbContext(options);
@@ -152,11 +152,11 @@ public sealed class BillingRecordChainingConcurrencyTests
     private static async Task<string> CreateDatabaseAsync()
     {
         var serverConnection = Environment.GetEnvironmentVariable(
-            "GESFACTU_TEST_SQLSERVER");
+            "GESFACTU_TEST_POSTGRESQL");
 
         if (string.IsNullOrWhiteSpace(serverConnection))
             throw new InvalidOperationException(
-                "GESFACTU_TEST_SQLSERVER no está configurada.");
+                "GESFACTU_TEST_POSTGRESQL no está configurada.");
 
         var databaseName = "gesFactuCi_" + Guid.NewGuid().ToString("N");
         var connectionString =
@@ -180,7 +180,7 @@ public sealed class BillingRecordChainingConcurrencyTests
         }
 
         throw new InvalidOperationException(
-            "SQL Server de pruebas no estuvo disponible a tiempo.",
+            "PostgreSQL de pruebas no estuvo disponible a tiempo.",
             lastError);
     }
 
@@ -199,17 +199,17 @@ public sealed class BillingRecordChainingConcurrencyTests
 }
 
 /// <summary>
-/// En local, estos tests se omiten si no se ha configurado una instancia SQL Server.
+/// En local, estos tests se omiten si no se ha configurado una instancia PostgreSQL.
 /// En CI la variable se configura y las pruebas son obligatorias.
 /// </summary>
-public sealed class SqlServerFactAttribute : FactAttribute
+public sealed class PostgreSqlFactAttribute : FactAttribute
 {
-    public SqlServerFactAttribute()
+    public PostgreSqlFactAttribute()
     {
         if (string.IsNullOrWhiteSpace(
-                Environment.GetEnvironmentVariable("GESFACTU_TEST_SQLSERVER")))
+                Environment.GetEnvironmentVariable("GESFACTU_TEST_POSTGRESQL")))
         {
-            Skip = "Requiere GESFACTU_TEST_SQLSERVER.";
+            Skip = "Requiere GESFACTU_TEST_POSTGRESQL.";
         }
     }
 }

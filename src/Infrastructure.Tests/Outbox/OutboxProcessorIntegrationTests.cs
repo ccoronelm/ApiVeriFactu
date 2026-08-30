@@ -15,7 +15,7 @@ namespace gesFactu.Infrastructure.Tests.Outbox;
 
 public sealed class OutboxProcessorIntegrationTests
 {
-    [SqlServerFact]
+    [PostgreSqlFact]
     public async Task AcceptedGatewayResponse_IsAuditedAndClosesOutbox()
     {
         var connectionString = await CreateDatabaseAsync();
@@ -27,7 +27,7 @@ public sealed class OutboxProcessorIntegrationTests
             var services = new ServiceCollection();
 
             services.AddDbContext<ApplicationDbContext>(
-                options => options.UseSqlServer(connectionString));
+                options => options.UseNpgsql(connectionString));
 
             services.AddScoped<IOutboxStore, OutboxStore>();
             services.AddScoped<IDeadLetterStore, DeadLetterStore>();
@@ -105,7 +105,7 @@ public sealed class OutboxProcessorIntegrationTests
         }
     }
 
-    [SqlServerFact]
+    [PostgreSqlFact]
     public async Task ConfirmedDuplicate_IsReconciledAsSuccessAndClosesOutbox()
     {
         var connectionString = await CreateDatabaseAsync();
@@ -117,7 +117,7 @@ public sealed class OutboxProcessorIntegrationTests
             var services = new ServiceCollection();
 
             services.AddDbContext<ApplicationDbContext>(
-                options => options.UseSqlServer(connectionString));
+                options => options.UseNpgsql(connectionString));
 
             services.AddScoped<IOutboxStore, OutboxStore>();
             services.AddScoped<IDeadLetterStore, DeadLetterStore>();
@@ -291,7 +291,7 @@ public sealed class OutboxProcessorIntegrationTests
     private static ApplicationDbContext CreateContext(string connectionString)
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
-            .UseSqlServer(connectionString)
+            .UseNpgsql(connectionString)
             .Options;
 
         return new ApplicationDbContext(options);
@@ -300,11 +300,11 @@ public sealed class OutboxProcessorIntegrationTests
     private static async Task<string> CreateDatabaseAsync()
     {
         var serverConnection = Environment.GetEnvironmentVariable(
-            "GESFACTU_TEST_SQLSERVER");
+            "GESFACTU_TEST_POSTGRESQL");
 
         if (string.IsNullOrWhiteSpace(serverConnection))
             throw new InvalidOperationException(
-                "GESFACTU_TEST_SQLSERVER no está configurada.");
+                "GESFACTU_TEST_POSTGRESQL no está configurada.");
 
         var databaseName = "gesFactuWorkerCi_" + Guid.NewGuid().ToString("N");
         var connectionString =
@@ -328,7 +328,7 @@ public sealed class OutboxProcessorIntegrationTests
         }
 
         throw new InvalidOperationException(
-            "SQL Server de pruebas no estuvo disponible a tiempo.",
+            "PostgreSQL de pruebas no estuvo disponible a tiempo.",
             lastError);
     }
 

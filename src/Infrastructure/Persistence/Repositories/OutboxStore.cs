@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore;
 namespace gesFactu.Infrastructure.Persistence.Repositories;
 
 /// <summary>
-/// Implementación SQL Server del Transactional Outbox.
+/// Implementación PostgreSQL del Transactional Outbox.
 /// </summary>
 public class OutboxStore : IOutboxStore
 {
@@ -57,16 +57,17 @@ public class OutboxStore : IOutboxStore
             IsolationLevel.ReadCommitted,
             cancellationToken);
 
-        // UPDLOCK + READPAST evita que dos workers reclamen las mismas filas.
-        // Las filas se marcan con una concesión antes de liberar la transacción.
+        // PostgreSQL: varios workers pueden reclamar lotes sin pisarse.
         var messages = await _context.OutboxMessages
             .FromSqlInterpolated($$"""
-                SELECT TOP ({{batchSize}}) *
-                FROM [OutboxMessages] WITH (UPDLOCK, READPAST, ROWLOCK)
-                WHERE [IsProcessed] = 0
-                  AND ([NextAttemptAt] IS NULL OR [NextAttemptAt] <= {{now}})
-                  AND ([LockedUntil] IS NULL OR [LockedUntil] <= {{now}})
-                ORDER BY [CreatedAt], [Id]
+                SELECT *
+                FROM "OutboxMessages"
+                WHERE "IsProcessed" = FALSE
+                  AND ("NextAttemptAt" IS NULL OR "NextAttemptAt" <= {{now}})
+                  AND ("LockedUntil" IS NULL OR "LockedUntil" <= {{now}})
+                ORDER BY "CreatedAt", "Id"
+                FOR UPDATE SKIP LOCKED
+                LIMIT {{batchSize}}
                 """)
             .ToListAsync(cancellationToken);
 

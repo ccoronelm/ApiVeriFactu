@@ -8,11 +8,10 @@ public interface IApplicationDbContext
     void AddOutboxMessage(object message);
 
     /// <summary>
-    /// Inicia una transacción SERIALIZABLE.
-    /// Se usa para operaciones cuya secuencia fiscal debe ser atómica
-    /// (seleccionar último registro + crear y encadenar el siguiente).
+    /// Inicia una transacción para una sección crítica protegida además
+    /// por un bloqueo exclusivo del proveedor relacional.
     /// </summary>
-    Task<IApplicationTransaction> BeginSerializableTransactionAsync(
+    Task<IApplicationTransaction> BeginTransactionAsync(
         CancellationToken cancellationToken = default);
 
     /// <summary>

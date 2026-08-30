@@ -137,7 +137,7 @@ public sealed class EnviarRegistroAEATCommandHandler
             }
 
             await using var transaction =
-                await _dbContext.BeginSerializableTransactionAsync(cancellationToken);
+                await _dbContext.BeginTransactionAsync(cancellationToken);
 
             await _dbContext.AcquireExclusiveLockAsync(
                 $"VERIFACTU_SUBMIT:{record.Id}",

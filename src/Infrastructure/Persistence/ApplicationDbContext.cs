@@ -35,11 +35,14 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
             nameof(message));
     }
 
-    public async Task<IApplicationTransaction> BeginSerializableTransactionAsync(
+    public async Task<IApplicationTransaction> BeginTransactionAsync(
         CancellationToken cancellationToken = default)
     {
+        // En PostgreSQL el advisory lock serializa la sección crítica.
+        // READ COMMITTED es intencional: un proceso que ha esperado el lock
+        // debe ver los datos confirmados por el propietario anterior.
         var transaction = await Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
+            IsolationLevel.ReadCommitted,
             cancellationToken);
 
         return new EfApplicationTransaction(transaction);
@@ -59,17 +62,9 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
 
         var resource = $"gesFactu:{resourceKey.Trim().ToUpperInvariant()}";
 
+        // Se libera automáticamente al commit/rollback de la transacción.
         await Database.ExecuteSqlInterpolatedAsync(
-            $"""
-            DECLARE @result int;
-            EXEC @result = sys.sp_getapplock
-                @Resource = {resource},
-                @LockMode = 'Exclusive',
-                @LockOwner = 'Transaction',
-                @LockTimeout = 15000;
-            IF @result < 0
-                THROW 51000, 'No se pudo obtener el bloqueo de la cadena fiscal.', 1;
-            """,
+            $"SELECT pg_advisory_xact_lock(hashtextextended({resource}, 0));",
             cancellationToken);
     }
 
