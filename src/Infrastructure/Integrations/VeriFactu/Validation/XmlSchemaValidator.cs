@@ -24,6 +24,10 @@ public sealed class XmlSchemaValidator : IXmlSchemaValidator
         "https://www2.agenciatributaria.gob.es/static_files/common/internet/dep/aplicaciones/es/aeat/tike/cont/ws/SuministroLR.xsd";
     private const string NsRespuesta =
         "https://www2.agenciatributaria.gob.es/static_files/common/internet/dep/aplicaciones/es/aeat/tike/cont/ws/RespuestaSuministro.xsd";
+    private const string NsConsulta =
+        "https://www2.agenciatributaria.gob.es/static_files/common/internet/dep/aplicaciones/es/aeat/tike/cont/ws/ConsultaLR.xsd";
+    private const string NsRespuestaConsulta =
+        "https://www2.agenciatributaria.gob.es/static_files/common/internet/dep/aplicaciones/es/aeat/tike/cont/ws/RespuestaConsultaLR.xsd";
     private const string NsDs = "http://www.w3.org/2000/09/xmldsig#";
 
     public XmlSchemaValidator(
@@ -183,7 +187,6 @@ public sealed class XmlSchemaValidator : IXmlSchemaValidator
                 break;
 
             case VeriFactuXmlSchemaType.SubmissionResponse:
-                // RespuestaSuministro importa tanto SuministroInformacion como SuministroLR.
                 TryAddOfficialSchema(
                     schemaSet,
                     "SuministroLR.xsd.xml",
@@ -193,6 +196,22 @@ public sealed class XmlSchemaValidator : IXmlSchemaValidator
                     schemaSet,
                     "RespuestaSuministro.xsd.xml",
                     NsRespuesta,
+                    loadErrors);
+                break;
+
+            case VeriFactuXmlSchemaType.QueryRecord:
+                TryAddOfficialSchema(
+                    schemaSet,
+                    "ConsultaLR.xsd.xml",
+                    NsConsulta,
+                    loadErrors);
+                break;
+
+            case VeriFactuXmlSchemaType.QueryResponse:
+                TryAddOfficialSchema(
+                    schemaSet,
+                    "RespuestaConsultaLR.xsd.xml",
+                    NsRespuestaConsulta,
                     loadErrors);
                 break;
 
