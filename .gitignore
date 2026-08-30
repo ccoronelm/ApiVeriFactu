@@ -59,6 +59,8 @@ appsettings.*.json
 # Certificate files
 *.pfx
 *.p12
+*.pem
+*.key
 *.cer
 
 # OS files
