@@ -98,6 +98,31 @@ public sealed class RegistroAltaXmlBuilderAdapterTests
     }
 
     [Fact]
+    public void BuildRegFactuXml_F1_IncluyeDestinatario()
+    {
+        var xmlBuilder = new RegistroAltaXmlBuilderAdapter(
+            Options.Create(CreateOptions()));
+
+        var xml = xmlBuilder.BuildRegFactuXml(
+            CreateRegistroAltaData(
+                "00000003",
+                "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC"));
+
+        var nsSf = (System.Xml.Linq.XNamespace)
+            "https://www2.agenciatributaria.gob.es/static_files/common/internet/dep/aplicaciones/es/aeat/tike/cont/ws/SuministroInformacion.xsd";
+
+        var doc = System.Xml.Linq.XDocument.Parse(xml);
+        var destinatario = doc.Descendants(nsSf + "IDDestinatario").Single();
+
+        Assert.Equal(
+            "DESTINATARIO PRUEBAS",
+            destinatario.Element(nsSf + "NombreRazon")?.Value);
+        Assert.Equal(
+            "87654321B",
+            destinatario.Element(nsSf + "NIF")?.Value);
+    }
+
+    [Fact]
     public async Task ValidateAsync_SiFaltaHuella_DevuelveInvalido()
     {
         var xmlBuilder = new RegistroAltaXmlBuilderAdapter(
