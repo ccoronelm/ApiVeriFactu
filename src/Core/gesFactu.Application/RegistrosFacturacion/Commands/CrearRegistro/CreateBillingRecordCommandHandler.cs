@@ -19,17 +19,20 @@ public sealed class CreateBillingRecordCommandHandler
     private readonly IBillingRecordRepository _repository;
     private readonly IHashCalculator _hashCalculator;
     private readonly ILogger<CreateBillingRecordCommandHandler> _logger;
+    private readonly IVeriFactuTaxpayerRegistry? _taxpayerRegistry;
 
     public CreateBillingRecordCommandHandler(
         IApplicationDbContext dbContext,
         IBillingRecordRepository repository,
         IHashCalculator hashCalculator,
-        ILogger<CreateBillingRecordCommandHandler> logger)
+        ILogger<CreateBillingRecordCommandHandler> logger,
+        IVeriFactuTaxpayerRegistry? taxpayerRegistry = null)
     {
         _dbContext = dbContext;
         _repository = repository;
         _hashCalculator = hashCalculator;
         _logger = logger;
+        _taxpayerRegistry = taxpayerRegistry;
     }
 
     public async Task<Result<CreateBillingRecordResponse>> Handle(
@@ -45,6 +48,31 @@ public sealed class CreateBillingRecordCommandHandler
         }
 
         var nif = ((ValueObjectResult<TaxpayerNif>.SuccessWithValue)nifResult).Value;
+
+        if (_taxpayerRegistry is not null)
+        {
+            VeriFactuTaxpayerIdentity configured;
+            try
+            {
+                configured = _taxpayerRegistry.ResolveByNif(nif.Value);
+            }
+            catch (InvalidOperationException)
+            {
+                return new Result<CreateBillingRecordResponse>.ValidationError(
+                    nameof(command.IssuerNif),
+                    "El NIF emisor no está habilitado en la configuración multiempresa.");
+            }
+
+            if (!string.Equals(
+                    configured.Name,
+                    command.IssuerName?.Trim(),
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                return new Result<CreateBillingRecordResponse>.ValidationError(
+                    nameof(command.IssuerName),
+                    "La razón social del emisor no coincide con el obligado tributario configurado.");
+            }
+        }
 
         var invoiceType = command.InvoiceType.Trim().ToUpperInvariant();
         if (invoiceType is not ("F1" or "F2"))
