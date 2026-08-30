@@ -151,7 +151,9 @@ public sealed class OutboxProcessorService : BackgroundService
 
             await billingRepository.UpdateAeatStatusAsync(
                 message.AggregateId,
-                "Aceptado",
+                lastAttempt.CódigoRespuesta == "AceptadoConErrores"
+                    ? "AceptadoConErrores"
+                    : "Aceptado",
                 cancellationToken);
 
             await outboxStore.MarkAsProcessedAsync(
