@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using gesFactu.Application.Common;
 using gesFactu.Application.RegistrosFacturacion.Commands.CrearRegistro;
 using gesFactu.Application.RegistrosFacturacion.Commands.CrearSubsanacion;
+using gesFactu.Application.RegistrosFacturacion.Commands.CrearAnulacion;
 using gesFactu.Application.RegistrosFacturacion.Commands.EnviarAEAT;
 using gesFactu.Application.RegistrosFacturacion.Queries.ObtenerRegistro;
 using gesFactu.Application.Auditoría.Queries.ObtenerHistorialEnvíos;
@@ -262,6 +263,83 @@ public class BillingRecordsController : ControllerBase
                 }),
 
             Result<CreateBillingRecordSubsanationResponse>.UnexpectedError unexpected =>
+                StatusCode(StatusCodes.Status500InternalServerError, new ProblemDetails
+                {
+                    Title = "Internal Server Error",
+                    Status = StatusCodes.Status500InternalServerError,
+                    Detail = unexpected.Message,
+                    Instance = HttpContext.Request.Path
+                }),
+
+            _ => StatusCode(StatusCodes.Status500InternalServerError)
+        };
+    }
+
+    /// <summary>
+    /// Genera un RegistroAnulacion para la identidad fiscal del RegistroAlta indicado.
+    /// El nuevo RF se encadena con el último registro generado y se remite después
+    /// mediante el endpoint /submit del nuevo identificador.
+    /// </summary>
+    [HttpPost("{id}/cancel")]
+    [ProducesResponseType(StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> CreateCancellation(
+        int id,
+        CancellationToken cancellationToken)
+    {
+        var result = await _mediator.Send(
+            new CreateBillingRecordCancellationCommand(id),
+            cancellationToken);
+
+        return result switch
+        {
+            Result<CreateBillingRecordCancellationResponse>.SuccessWithValue success =>
+                CreatedAtAction(
+                    nameof(GetBillingRecord),
+                    new { id = success.Value.BillingRecordId },
+                    success.Value),
+
+            Result<CreateBillingRecordCancellationResponse>.NotFoundError notFound =>
+                NotFound(new ProblemDetails
+                {
+                    Title = "Not Found",
+                    Status = StatusCodes.Status404NotFound,
+                    Detail = $"Registro {notFound.Identifier} no encontrado",
+                    Instance = HttpContext.Request.Path
+                }),
+
+            Result<CreateBillingRecordCancellationResponse>.ValidationError validation =>
+                BadRequest(new ProblemDetails
+                {
+                    Title = "Validation Failed",
+                    Status = StatusCodes.Status400BadRequest,
+                    Detail = validation.Message,
+                    Instance = HttpContext.Request.Path,
+                    Extensions = new Dictionary<string, object?> { { "field", validation.PropertyName } }
+                }),
+
+            Result<CreateBillingRecordCancellationResponse>.DomainError domain =>
+                BadRequest(new ProblemDetails
+                {
+                    Title = "Business Rule Violation",
+                    Status = StatusCodes.Status400BadRequest,
+                    Detail = domain.Message,
+                    Instance = HttpContext.Request.Path
+                }),
+
+            Result<CreateBillingRecordCancellationResponse>.ConflictError conflict =>
+                Conflict(new ProblemDetails
+                {
+                    Title = "Conflict",
+                    Status = StatusCodes.Status409Conflict,
+                    Detail = conflict.Message,
+                    Instance = HttpContext.Request.Path
+                }),
+
+            Result<CreateBillingRecordCancellationResponse>.UnexpectedError unexpected =>
                 StatusCode(StatusCodes.Status500InternalServerError, new ProblemDetails
                 {
                     Title = "Internal Server Error",
