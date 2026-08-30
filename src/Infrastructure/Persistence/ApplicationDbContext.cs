@@ -45,6 +45,34 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
         return new EfApplicationTransaction(transaction);
     }
 
+    public async Task AcquireFiscalChainLockAsync(
+        string chainKey,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(chainKey);
+
+        if (Database.CurrentTransaction is null)
+        {
+            throw new InvalidOperationException(
+                "El bloqueo de cadena fiscal requiere una transacción activa.");
+        }
+
+        var resource = $"gesFactu:VeriFactuChain:{chainKey.Trim().ToUpperInvariant()}";
+
+        await Database.ExecuteSqlInterpolatedAsync(
+            $"""
+            DECLARE @result int;
+            EXEC @result = sys.sp_getapplock
+                @Resource = {resource},
+                @LockMode = 'Exclusive',
+                @LockOwner = 'Transaction',
+                @LockTimeout = 15000;
+            IF @result < 0
+                THROW 51000, 'No se pudo obtener el bloqueo de la cadena fiscal.', 1;
+            """,
+            cancellationToken);
+    }
+
     public override Task<int> SaveChangesAsync(
         CancellationToken cancellationToken = default)
         => base.SaveChangesAsync(cancellationToken);
