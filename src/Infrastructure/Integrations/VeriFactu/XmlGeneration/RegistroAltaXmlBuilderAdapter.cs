@@ -26,8 +26,8 @@ public sealed class RegistroAltaXmlBuilderAdapter : IRegistroAltaXmlBuilder
 
         var ns = RegistroAltaXmlBuilder.NsSf;
         var nsLr = RegistroAltaXmlBuilder.NsSfLr;
-        var taxpayer = opts.Taxpayer;
-        var si = opts.SistemaInformatico;
+        var taxpayer = opts.ResolveTaxpayerByNif(data.IssuerNif);
+        var si = opts.GetSistemaInformaticoForTaxpayer(data.IssuerNif);
 
         XElement encadenamiento;
         if (string.IsNullOrWhiteSpace(data.PreviousRecordHash))
@@ -229,15 +229,19 @@ public sealed class RegistroAltaXmlBuilderAdapter : IRegistroAltaXmlBuilder
         VeriFactuOptions options,
         RegistroAltaData data)
     {
-        var taxpayer = options.Taxpayer;
-        var si = options.SistemaInformatico;
-
-        if (string.IsNullOrWhiteSpace(taxpayer.Nif) ||
-            string.IsNullOrWhiteSpace(taxpayer.Name))
+        VeriFactuTaxpayerProfileOptions taxpayer;
+        try
+        {
+            taxpayer = options.ResolveTaxpayerByNif(data.IssuerNif);
+        }
+        catch (InvalidOperationException ex)
         {
             throw new InvalidOperationException(
-                "Falta configurar VeriFactu:Taxpayer:Nif y VeriFactu:Taxpayer:Name.");
+                "El obligado tributario del registro no está configurado.",
+                ex);
         }
+
+        var si = options.GetSistemaInformaticoForTaxpayer(data.IssuerNif);
 
         if (!string.Equals(
                 taxpayer.Nif.Trim(),

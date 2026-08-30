@@ -68,6 +68,27 @@ public sealed class CertificateOptions
 }
 
 /// <summary>
+/// Configuración aislada de un obligado tributario dentro de una instalación
+/// multiempresa. El certificado y, opcionalmente, el número de instalación
+/// se resuelven por obligado.
+/// </summary>
+public sealed class VeriFactuTaxpayerProfileOptions
+{
+    /// <summary>Clave interna estable, por ejemplo empresa-a.</summary>
+    public string Key { get; set; } = string.Empty;
+
+    public string Nif { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+
+    public CertificateOptions Certificate { get; set; } = new();
+
+    /// <summary>
+    /// Override opcional de SistemaInformatico/NumeroInstalacion.
+    /// </summary>
+    public string? InstallationNumber { get; set; }
+}
+
+/// <summary>
 /// Datos del sistema informático (productor del software).
 /// Es la entidad que desarrolla/mantiene gesFactu. Distinta del obligado tributario.
 /// Ref: /VERIFACTU/SuministroInformacion.xsd - SistemaInformaticoType
@@ -164,14 +185,21 @@ public sealed class VeriFactuOptions
     public int RetryDelayMs { get; set; } = 1000;
 
     /// <summary>
-    /// Datos del obligado tributario que emite las facturas.
+    /// Configuración legacy mono-obligado. Se mantiene para compatibilidad.
+    /// Si Taxpayers contiene elementos, estos tienen prioridad.
     /// </summary>
     public ObligadoTributarioOptions Taxpayer { get; set; } = new();
 
     /// <summary>
-    /// Configuración del certificado X.509 para autenticación mTLS.
+    /// Certificado legacy mono-obligado.
     /// </summary>
     public CertificateOptions Certificate { get; set; } = new();
+
+    /// <summary>
+    /// Obligados tributarios configurados. Cada perfil mantiene identidad,
+    /// certificado mTLS y opcionalmente NumeroInstalacion independientes.
+    /// </summary>
+    public List<VeriFactuTaxpayerProfileOptions> Taxpayers { get; set; } = new();
 
     /// <summary>
     /// Datos del sistema informático (productor del software).
@@ -192,5 +220,74 @@ public sealed class VeriFactuOptions
     public string GetEndpoint() => Environment == VeriFactuEntorno.Production
         ? EndpointProduction
         : EndpointTest;
+
+    public IReadOnlyList<VeriFactuTaxpayerProfileOptions> GetConfiguredTaxpayers()
+    {
+        if (Taxpayers.Count > 0)
+            return Taxpayers;
+
+        if (!string.IsNullOrWhiteSpace(Taxpayer.Nif) ||
+            !string.IsNullOrWhiteSpace(Taxpayer.Name))
+        {
+            return
+            [
+                new VeriFactuTaxpayerProfileOptions
+                {
+                    Key = "default",
+                    Nif = Taxpayer.Nif,
+                    Name = Taxpayer.Name,
+                    Certificate = Certificate,
+                    InstallationNumber = SistemaInformatico.NumeroInstalacion
+                }
+            ];
+        }
+
+        return Array.Empty<VeriFactuTaxpayerProfileOptions>();
+    }
+
+    public VeriFactuTaxpayerProfileOptions ResolveTaxpayer(string selector)
+    {
+        if (string.IsNullOrWhiteSpace(selector))
+            throw new InvalidOperationException("Debe seleccionarse un obligado tributario.");
+
+        var value = selector.Trim();
+        var matches = GetConfiguredTaxpayers()
+            .Where(x =>
+                string.Equals(x.Nif?.Trim(), value, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(x.Key?.Trim(), value, StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+
+        return matches.Length switch
+        {
+            1 => matches[0],
+            0 => throw new InvalidOperationException(
+                $"El obligado tributario '{value}' no está configurado."),
+            _ => throw new InvalidOperationException(
+                $"La selección '{value}' no identifica un único obligado tributario.")
+        };
+    }
+
+    public VeriFactuTaxpayerProfileOptions ResolveTaxpayerByNif(string nif)
+        => ResolveTaxpayer(nif);
+
+    public SistemaInformaticoOptions GetSistemaInformaticoForTaxpayer(string nif)
+    {
+        var profile = ResolveTaxpayerByNif(nif);
+
+        return new SistemaInformaticoOptions
+        {
+            NombreRazon = SistemaInformatico.NombreRazon,
+            Nif = SistemaInformatico.Nif,
+            NombreSistemaInformatico = SistemaInformatico.NombreSistemaInformatico,
+            IdSistemaInformatico = SistemaInformatico.IdSistemaInformatico,
+            Version = SistemaInformatico.Version,
+            NumeroInstalacion = string.IsNullOrWhiteSpace(profile.InstallationNumber)
+                ? SistemaInformatico.NumeroInstalacion
+                : profile.InstallationNumber.Trim(),
+            TipoUsoPosibleSoloVerifactu = SistemaInformatico.TipoUsoPosibleSoloVerifactu,
+            TipoUsoPosibleMultiOT = SistemaInformatico.TipoUsoPosibleMultiOT,
+            IndicadorMultiplesOT = SistemaInformatico.IndicadorMultiplesOT
+        };
+    }
 }
 

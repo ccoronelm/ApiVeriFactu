@@ -16,7 +16,8 @@ namespace gesFactu.Infrastructure.Integrations.VeriFactu;
 /// </summary>
 public sealed class VeriFactuGatewaySoapClient : IVeriFactuGateway
 {
-    private readonly HttpClient _httpClient;
+    private readonly HttpClient? _httpClient;
+    private readonly IVeriFactuHttpClientProvider? _httpClientProvider;
     private readonly IXmlSchemaValidator _xmlSchemaValidator;
     private readonly ILogger<VeriFactuGatewaySoapClient> _logger;
     private readonly VeriFactuOptions _options;
@@ -39,6 +40,9 @@ public sealed class VeriFactuGatewaySoapClient : IVeriFactuGateway
     private static readonly XNamespace NsQueryResponse =
         VeriFactuQueryXmlCodec.NsResponse;
 
+    /// <summary>
+    /// Constructor usado por pruebas/E2E con un HttpClient ya configurado.
+    /// </summary>
     public VeriFactuGatewaySoapClient(
         HttpClient httpClient,
         IOptions<VeriFactuOptions> options,
@@ -46,6 +50,23 @@ public sealed class VeriFactuGatewaySoapClient : IVeriFactuGateway
         ILogger<VeriFactuGatewaySoapClient> logger)
     {
         _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
+        _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
+        _xmlSchemaValidator = xmlSchemaValidator ??
+            throw new ArgumentNullException(nameof(xmlSchemaValidator));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+    }
+
+    /// <summary>
+    /// Constructor de producción: selecciona HttpClient/certificado por NIF.
+    /// </summary>
+    public VeriFactuGatewaySoapClient(
+        IVeriFactuHttpClientProvider httpClientProvider,
+        IOptions<VeriFactuOptions> options,
+        IXmlSchemaValidator xmlSchemaValidator,
+        ILogger<VeriFactuGatewaySoapClient> logger)
+    {
+        _httpClientProvider = httpClientProvider ??
+            throw new ArgumentNullException(nameof(httpClientProvider));
         _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
         _xmlSchemaValidator = xmlSchemaValidator ??
             throw new ArgumentNullException(nameof(xmlSchemaValidator));
@@ -69,7 +90,11 @@ public sealed class VeriFactuGatewaySoapClient : IVeriFactuGateway
             request.TaxpayerNif);
 
         var envelope = BuildRegFactuSoapEnvelope(request.SignedXmlContent);
-        var response = await SendSoapAsync(endpoint, envelope, cancellationToken);
+        var response = await SendSoapAsync(
+            request.TaxpayerNif,
+            endpoint,
+            envelope,
+            cancellationToken);
 
         var responseElement = response.Document
             .Descendants(NsResp + "RespuestaRegFactuSistemaFacturacion")
@@ -129,6 +154,7 @@ public sealed class VeriFactuGatewaySoapClient : IVeriFactuGateway
 
         var envelope = BuildQuerySoapEnvelope(queryXml);
         var response = await SendSoapAsync(
+            request.TaxpayerNif,
             _options.GetEndpoint(),
             envelope,
             cancellationToken);
@@ -247,6 +273,7 @@ public sealed class VeriFactuGatewaySoapClient : IVeriFactuGateway
     }
 
     private async Task<SoapResponse> SendSoapAsync(
+        string taxpayerNif,
         string endpoint,
         XDocument soapEnvelope,
         CancellationToken cancellationToken)
@@ -266,7 +293,12 @@ public sealed class VeriFactuGatewaySoapClient : IVeriFactuGateway
 
         try
         {
-            response = await _httpClient.SendAsync(
+            var client = _httpClient ??
+                _httpClientProvider?.GetClient(taxpayerNif) ??
+                throw new InvalidOperationException(
+                    "No hay HttpClient VERI*FACTU configurado.");
+
+            response = await client.SendAsync(
                 request,
                 HttpCompletionOption.ResponseContentRead,
                 cancellationToken);

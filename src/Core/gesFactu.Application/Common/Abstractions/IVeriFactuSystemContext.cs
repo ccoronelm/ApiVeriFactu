@@ -12,4 +12,6 @@ public interface IVeriFactuSystemContext
     string SystemId { get; }
     string Version { get; }
     string InstallationNumber { get; }
+
+    string GetInstallationNumber(string taxpayerNif);
 }

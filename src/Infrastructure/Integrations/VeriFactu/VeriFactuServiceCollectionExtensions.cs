@@ -1,4 +1,3 @@
-using System.Security.Cryptography.X509Certificates;
 using gesFactu.Application.Common.Abstractions;
 using gesFactu.Infrastructure.Integrations.VeriFactu.Certificate;
 using Microsoft.Extensions.Configuration;
@@ -27,6 +26,7 @@ public static class VeriFactuServiceCollectionExtensions
         services.Configure<VeriFactuOptions>(section);
         services.AddSingleton<CertificateLoader>();
         services.AddScoped<IVeriFactuTaxpayerContext, ConfiguredVeriFactuTaxpayerContext>();
+        services.AddScoped<IVeriFactuTaxpayerRegistry, ConfiguredVeriFactuTaxpayerRegistry>();
         services.AddScoped<IVeriFactuSystemContext, ConfiguredVeriFactuSystemContext>();
 
         var mode = options.ClientMode?.Trim().ToLowerInvariant();
@@ -63,16 +63,92 @@ public static class VeriFactuServiceCollectionExtensions
 
         if (options.TimeoutSeconds <= 0)
             throw new InvalidOperationException("VeriFactu:TimeoutSeconds debe ser mayor que cero.");
+
+        var taxpayers = options.GetConfiguredTaxpayers();
+
+        if (taxpayers.Count > 1 &&
+            (options.SistemaInformatico.TipoUsoPosibleMultiOT != "S" ||
+             options.SistemaInformatico.IndicadorMultiplesOT != "S"))
+        {
+            throw new InvalidOperationException(
+                "Con varios obligados tributarios, TipoUsoPosibleMultiOT e IndicadorMultiplesOT deben ser S.");
+        }
+
+        if (taxpayers
+            .Where(x => !string.IsNullOrWhiteSpace(x.Nif))
+            .GroupBy(x => x.Nif.Trim(), StringComparer.OrdinalIgnoreCase)
+            .Any(x => x.Count() > 1))
+        {
+            throw new InvalidOperationException(
+                "No puede haber NIF duplicados en VeriFactu:Taxpayers.");
+        }
+
+        if (taxpayers
+            .Where(x => !string.IsNullOrWhiteSpace(x.Key))
+            .GroupBy(x => x.Key.Trim(), StringComparer.OrdinalIgnoreCase)
+            .Any(x => x.Count() > 1))
+        {
+            throw new InvalidOperationException(
+                "No puede haber claves duplicadas en VeriFactu:Taxpayers.");
+        }
     }
 
     private static void ValidateSoapConfiguration(VeriFactuOptions options)
     {
         var missing = new List<string>();
 
-        if (string.IsNullOrWhiteSpace(options.Taxpayer.Nif))
-            missing.Add("Taxpayer:Nif");
-        if (string.IsNullOrWhiteSpace(options.Taxpayer.Name))
-            missing.Add("Taxpayer:Name");
+        var taxpayers = options.GetConfiguredTaxpayers();
+
+        if (taxpayers.Count == 0)
+            missing.Add("Taxpayer o Taxpayers");
+
+        foreach (var taxpayer in taxpayers)
+        {
+            var label = string.IsNullOrWhiteSpace(taxpayer.Key)
+                ? taxpayer.Nif
+                : taxpayer.Key;
+
+            if (string.IsNullOrWhiteSpace(taxpayer.Key))
+                missing.Add($"Taxpayers:{label}:Key");
+            if (string.IsNullOrWhiteSpace(taxpayer.Nif) || taxpayer.Nif.Trim().Length != 9)
+                missing.Add($"Taxpayers:{label}:Nif");
+            if (string.IsNullOrWhiteSpace(taxpayer.Name))
+                missing.Add($"Taxpayers:{label}:Name");
+
+            var hasThumbprint = !string.IsNullOrWhiteSpace(taxpayer.Certificate.Thumbprint);
+            var hasPfx = !string.IsNullOrWhiteSpace(taxpayer.Certificate.PfxPath);
+            if (!hasThumbprint && !hasPfx)
+            {
+                missing.Add(
+                    options.Taxpayers.Count == 0
+                        ? "Certificate:Thumbprint o Certificate:PfxPath"
+                        : $"Taxpayers:{label}:Certificate");
+            }
+        }
+
+        if (taxpayers
+            .Where(x => !string.IsNullOrWhiteSpace(x.Nif))
+            .GroupBy(x => x.Nif.Trim(), StringComparer.OrdinalIgnoreCase)
+            .Any(g => g.Count() > 1))
+        {
+            missing.Add("Taxpayers:Nif duplicado");
+        }
+
+        if (taxpayers
+            .Where(x => !string.IsNullOrWhiteSpace(x.Key))
+            .GroupBy(x => x.Key.Trim(), StringComparer.OrdinalIgnoreCase)
+            .Any(g => g.Count() > 1))
+        {
+            missing.Add("Taxpayers:Key duplicada");
+        }
+
+        if (taxpayers.Count > 1 &&
+            (options.SistemaInformatico.TipoUsoPosibleMultiOT != "S" ||
+             options.SistemaInformatico.IndicadorMultiplesOT != "S"))
+        {
+            missing.Add(
+                "SistemaInformatico:TipoUsoPosibleMultiOT/IndicadorMultiplesOT deben ser S con varios obligados");
+        }
 
         if (string.IsNullOrWhiteSpace(options.SistemaInformatico.NombreRazon))
             missing.Add("SistemaInformatico:NombreRazon");
@@ -87,12 +163,6 @@ public static class VeriFactuServiceCollectionExtensions
         if (string.IsNullOrWhiteSpace(options.SistemaInformatico.NumeroInstalacion))
             missing.Add("SistemaInformatico:NumeroInstalacion");
 
-        var hasThumbprint = !string.IsNullOrWhiteSpace(options.Certificate.Thumbprint);
-        var hasPfx = !string.IsNullOrWhiteSpace(options.Certificate.PfxPath);
-
-        if (!hasThumbprint && !hasPfx)
-            missing.Add("Certificate:Thumbprint o Certificate:PfxPath");
-
         if (missing.Count > 0)
         {
             throw new InvalidOperationException(
@@ -105,36 +175,9 @@ public static class VeriFactuServiceCollectionExtensions
         IServiceCollection services,
         VeriFactuOptions options)
     {
-        services.AddSingleton<X509Certificate2>(sp =>
-        {
-            var loader = sp.GetRequiredService<CertificateLoader>();
-            return loader.Load(options.Certificate)
-                ?? throw new InvalidOperationException(
-                    "SoapClient requiere un certificado cliente X.509 válido.");
-        });
-
-        services.AddHttpClient<VeriFactuGatewaySoapClient>()
-            .ConfigureHttpClient(client =>
-            {
-                client.Timeout = TimeSpan.FromSeconds(options.TimeoutSeconds);
-                client.DefaultRequestHeaders.UserAgent.ParseAdd("gesFactu/1.0");
-            })
-            .ConfigurePrimaryHttpMessageHandler(sp =>
-            {
-                var cert = sp.GetRequiredService<X509Certificate2>();
-                return CreateHttpHandler(cert);
-            });
-
+        services.AddSingleton<IVeriFactuHttpClientProvider, VeriFactuHttpClientProvider>();
+        services.AddScoped<VeriFactuGatewaySoapClient>();
         services.AddScoped<IVeriFactuGateway>(sp =>
             sp.GetRequiredService<VeriFactuGatewaySoapClient>());
-    }
-
-    private static HttpClientHandler CreateHttpHandler(X509Certificate2 clientCert)
-    {
-        var handler = new HttpClientHandler();
-        handler.ClientCertificates.Add(clientCert);
-
-        // Nunca se desactiva la validación TLS del servidor AEAT.
-        return handler;
     }
 }

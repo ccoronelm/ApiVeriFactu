@@ -61,7 +61,8 @@ public sealed class RegistroAnulacionXmlBuilderAdapter : IRegistroAnulacionXmlBu
                     new XElement(ns + "Huella", data.PreviousRecordHash)));
         }
 
-        var si = options.SistemaInformatico;
+        var taxpayer = options.ResolveTaxpayerByNif(data.IssuerNif);
+        var si = options.GetSistemaInformaticoForTaxpayer(data.IssuerNif);
         var sistemaInformatico = new XElement(
             ns + "SistemaInformatico",
             new XElement(ns + "NombreRazon", si.NombreRazon),
@@ -104,8 +105,8 @@ public sealed class RegistroAnulacionXmlBuilderAdapter : IRegistroAnulacionXmlBu
             nsLr + "Cabecera",
             new XElement(
                 ns + "ObligadoEmision",
-                new XElement(ns + "NombreRazon", options.Taxpayer.Name),
-                new XElement(ns + "NIF", options.Taxpayer.Nif)));
+                new XElement(ns + "NombreRazon", taxpayer.Name),
+                new XElement(ns + "NIF", taxpayer.Nif)));
 
         var root = new XElement(
             nsLr + "RegFactuSistemaFacturacion",
@@ -125,20 +126,25 @@ public sealed class RegistroAnulacionXmlBuilderAdapter : IRegistroAnulacionXmlBu
         VeriFactuOptions options,
         RegistroAnulacionData data)
     {
-        if (string.IsNullOrWhiteSpace(options.Taxpayer.Nif) ||
-            string.IsNullOrWhiteSpace(options.Taxpayer.Name))
+        VeriFactuTaxpayerProfileOptions taxpayer;
+        try
+        {
+            taxpayer = options.ResolveTaxpayerByNif(data.IssuerNif);
+        }
+        catch (InvalidOperationException ex)
         {
             throw new InvalidOperationException(
-                "Falta configurar VeriFactu:Taxpayer:Nif/Name.");
+                "El emisor de la anulación no está configurado como obligado tributario.",
+                ex);
         }
 
         if (!string.Equals(
-                options.Taxpayer.Nif.Trim(),
+                taxpayer.Nif.Trim(),
                 data.IssuerNif.Trim(),
                 StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidOperationException(
-                "El emisor de la anulación no coincide con el obligado tributario configurado.");
+                "El emisor de la anulación no coincide con el obligado resuelto.");
         }
 
         if (string.IsNullOrWhiteSpace(data.ComputedHash))
@@ -148,7 +154,7 @@ public sealed class RegistroAnulacionXmlBuilderAdapter : IRegistroAnulacionXmlBu
             throw new InvalidOperationException(
                 "RegistroAnulacion requiere FechaHoraHusoGenRegistro.");
 
-        var si = options.SistemaInformatico;
+        var si = options.GetSistemaInformaticoForTaxpayer(data.IssuerNif);
         if (string.IsNullOrWhiteSpace(si.NombreRazon) ||
             string.IsNullOrWhiteSpace(si.Nif) ||
             string.IsNullOrWhiteSpace(si.NombreSistemaInformatico) ||
