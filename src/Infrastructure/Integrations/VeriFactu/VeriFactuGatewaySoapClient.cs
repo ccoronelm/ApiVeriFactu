@@ -153,7 +153,7 @@ public sealed class VeriFactuGatewaySoapClient : IVeriFactuGateway
             new MediaTypeHeaderValue("text/xml") { CharSet = "UTF-8" };
 
         // WSDL oficial: soapAction=""
-        request.Headers.TryAddWithoutValidation("SOAPAction", """");
+        request.Headers.TryAddWithoutValidation("SOAPAction", "\"\"");
 
         HttpResponseMessage response;
 
