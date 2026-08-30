@@ -13,6 +13,8 @@ namespace gesFactu.Infrastructure.Tests.VeriFactu;
 public sealed class VeriFactuGatewaySoapClientTests
 {
     private const string Nif = "89890001K";
+    private const string NsSfLr = "https://www2.agenciatributaria.gob.es/static_files/common/internet/dep/aplicaciones/es/aeat/tike/cont/ws/SuministroLR.xsd";
+    private const string NsSf = "https://www2.agenciatributaria.gob.es/static_files/common/internet/dep/aplicaciones/es/aeat/tike/cont/ws/SuministroInformacion.xsd";
 
     [Fact]
     public async Task SubmitBillingRecordAsync_ParsesAcceptedResponseAndRealCsv()
@@ -92,8 +94,8 @@ public sealed class VeriFactuGatewaySoapClientTests
             SignedXmlContent =
                 $$"""
                 <sfLR:RegFactuSistemaFacturacion
-                    xmlns:sfLR="{{RegistroAltaXmlBuilder.NsSfLr.NamespaceName}}"
-                    xmlns:sf="{{RegistroAltaXmlBuilder.NsSf.NamespaceName}}">
+                    xmlns:sfLR="{{NsSfLr}}"
+                    xmlns:sf="{{NsSf}}">
                 </sfLR:RegFactuSistemaFacturacion>
                 """
         };
