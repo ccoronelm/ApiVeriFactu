@@ -46,39 +46,66 @@ public sealed class CreateBillingRecordCommandHandler
 
         var nif = ((ValueObjectResult<TaxpayerNif>.SuccessWithValue)nifResult).Value;
 
-        var recipientNifResult = TaxpayerNif.Create(command.RecipientNif);
-        if (recipientNifResult is ValueObjectResult<TaxpayerNif>.ValidationError recipientNifError)
+        var invoiceType = command.InvoiceType.Trim().ToUpperInvariant();
+        if (invoiceType is not ("F1" or "F2"))
+        {
+            return new Result<CreateBillingRecordResponse>.ValidationError(
+                nameof(command.InvoiceType),
+                "TipoFactura debe ser F1 o F2.");
+        }
+
+        string recipientNifValue = string.Empty;
+        string recipientName = string.Empty;
+
+        var hasRecipientNif = !string.IsNullOrWhiteSpace(command.RecipientNif);
+        var hasRecipientName = !string.IsNullOrWhiteSpace(command.RecipientName);
+
+        if (invoiceType == "F1" && (!hasRecipientNif || !hasRecipientName))
         {
             return new Result<CreateBillingRecordResponse>.ValidationError(
                 nameof(command.RecipientNif),
-                recipientNifError.Message);
+                "F1 requiere NIF y nombre o razón social del destinatario.");
         }
 
-        var recipientNif =
-            ((ValueObjectResult<TaxpayerNif>.SuccessWithValue)recipientNifResult).Value;
-
-        if (string.Equals(
-                nif.Value,
-                recipientNif.Value,
-                StringComparison.OrdinalIgnoreCase))
+        if (hasRecipientNif != hasRecipientName)
         {
             return new Result<CreateBillingRecordResponse>.ValidationError(
                 nameof(command.RecipientNif),
-                "El NIF del destinatario debe ser distinto del NIF del obligado emisor.");
+                "NIF y nombre del destinatario deben informarse juntos.");
         }
 
-        if (string.IsNullOrWhiteSpace(command.RecipientName))
+        if (hasRecipientNif)
         {
-            return new Result<CreateBillingRecordResponse>.ValidationError(
-                nameof(command.RecipientName),
-                "El nombre o razón social del destinatario es obligatorio para F1.");
-        }
+            var recipientNifResult = TaxpayerNif.Create(command.RecipientNif!);
+            if (recipientNifResult is ValueObjectResult<TaxpayerNif>.ValidationError recipientNifError)
+            {
+                return new Result<CreateBillingRecordResponse>.ValidationError(
+                    nameof(command.RecipientNif),
+                    recipientNifError.Message);
+            }
 
-        if (command.RecipientName.Trim().Length > 120)
-        {
-            return new Result<CreateBillingRecordResponse>.ValidationError(
-                nameof(command.RecipientName),
-                "El nombre o razón social del destinatario no puede superar 120 caracteres.");
+            recipientNifValue =
+                ((ValueObjectResult<TaxpayerNif>.SuccessWithValue)recipientNifResult)
+                .Value.Value;
+
+            recipientName = command.RecipientName!.Trim();
+
+            if (string.Equals(
+                    nif.Value,
+                    recipientNifValue,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                return new Result<CreateBillingRecordResponse>.ValidationError(
+                    nameof(command.RecipientNif),
+                    "El NIF del destinatario debe ser distinto del NIF del obligado emisor.");
+            }
+
+            if (recipientName.Length > 120)
+            {
+                return new Result<CreateBillingRecordResponse>.ValidationError(
+                    nameof(command.RecipientName),
+                    "El nombre o razón social del destinatario no puede superar 120 caracteres.");
+            }
         }
 
         var seriesResult = InvoiceSeries.Create(command.InvoiceSeries);
@@ -210,14 +237,15 @@ public sealed class CreateBillingRecordCommandHandler
             var billingRecord = BillingRecord.Create(
                 identifier,
                 command.IssuerName,
-                recipientNif.Value,
-                command.RecipientName,
+                recipientNifValue,
+                recipientName,
                 command.Description,
                 totalAmount,
                 totalTaxAmount,
                 previousRecord?.Id,
                 previousRecord?.ComputedHash,
-                registerTimestamp);
+                registerTimestamp,
+                invoiceType);
 
             var hashInput = new BillingRecordHashInput
             {
@@ -228,7 +256,7 @@ public sealed class CreateBillingRecordCommandHandler
                 IssueDate = billingRecord.IssueDate.ToString(
                     "dd-MM-yyyy",
                     System.Globalization.CultureInfo.InvariantCulture),
-                InvoiceType = "F1",
+                InvoiceType = billingRecord.InvoiceType,
                 TotalAmount = billingRecord.TotalAmount,
                 TotalTaxAmount = billingRecord.TotalTaxAmount,
                 RegisterTimestamp = billingRecord.RegisterTimestamp
