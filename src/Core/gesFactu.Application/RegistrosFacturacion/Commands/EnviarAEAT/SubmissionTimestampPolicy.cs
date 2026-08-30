@@ -56,22 +56,40 @@ public static class SubmissionTimestampPolicy
             "yyyy-MM-ddTHH:mm:sszzz",
             CultureInfo.InvariantCulture);
 
-        var hashInput = new BillingRecordHashInput
+        var issueDate = record.IssueDate.ToString(
+            "dd-MM-yyyy",
+            CultureInfo.InvariantCulture);
+
+        if (record.RecordType == BillingRecord.CancellationRecordType)
         {
-            PreviousHash = record.PreviousRecordHash ?? string.Empty,
-            IssuerNif = record.IssuerNif,
-            InvoiceSeries = record.InvoiceSeries,
-            InvoiceNumber = record.InvoiceNumber,
-            IssueDate = record.IssueDate.ToString(
-                "dd-MM-yyyy",
-                CultureInfo.InvariantCulture),
-            InvoiceType = "F1",
-            TotalAmount = record.TotalAmount,
-            TotalTaxAmount = record.TotalTaxAmount,
-            RegisterTimestamp = record.RegisterTimestamp
-        };
+            record.SetComputedHash(
+                hashCalculator.CalculateCancellationHash(
+                    new CancellationRecordHashInput
+                    {
+                        PreviousHash = record.PreviousRecordHash ?? string.Empty,
+                        IssuerNif = record.IssuerNif,
+                        InvoiceSeries = record.InvoiceSeries,
+                        InvoiceNumber = record.InvoiceNumber,
+                        IssueDate = issueDate,
+                        RegisterTimestamp = record.RegisterTimestamp
+                    }));
+
+            return;
+        }
 
         record.SetComputedHash(
-            hashCalculator.CalculateChainHash(hashInput));
+            hashCalculator.CalculateChainHash(
+                new BillingRecordHashInput
+                {
+                    PreviousHash = record.PreviousRecordHash ?? string.Empty,
+                    IssuerNif = record.IssuerNif,
+                    InvoiceSeries = record.InvoiceSeries,
+                    InvoiceNumber = record.InvoiceNumber,
+                    IssueDate = issueDate,
+                    InvoiceType = "F1",
+                    TotalAmount = record.TotalAmount,
+                    TotalTaxAmount = record.TotalTaxAmount,
+                    RegisterTimestamp = record.RegisterTimestamp
+                }));
     }
 }
