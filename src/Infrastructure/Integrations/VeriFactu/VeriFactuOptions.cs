@@ -62,9 +62,15 @@ public sealed class CertificateOptions
     public string? PfxPath { get; set; }
 
     /// <summary>
-    /// Contraseña del PFX. Usar User Secrets, nunca hardcodear.
+    /// Contraseña del PFX. Usar User Secrets/secret manager, nunca hardcodear.
     /// </summary>
     public string? PfxPassword { get; set; }
+
+    /// <summary>
+    /// Ruta opcional a un secret file que contiene únicamente la contraseña
+    /// del PFX. Preferible en contenedores Linux.
+    /// </summary>
+    public string? PfxPasswordFile { get; set; }
 }
 
 /// <summary>
