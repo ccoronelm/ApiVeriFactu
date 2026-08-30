@@ -130,6 +130,12 @@ public sealed class RegistroAltaXmlBuilderAdapter : IRegistroAltaXmlBuilder
             new XElement(ns + "NombreRazonEmisor", taxpayer.Name),
             new XElement(ns + "TipoFactura", data.TipoFactura),
             new XElement(ns + "DescripcionOperacion", data.Description),
+            new XElement(
+                ns + "Destinatarios",
+                new XElement(
+                    ns + "IDDestinatario",
+                    new XElement(ns + "NombreRazon", data.RecipientName),
+                    new XElement(ns + "NIF", data.RecipientNif))),
             desgloseElement,
             new XElement(ns + "CuotaTotal", RegistroAltaXmlBuilder.FormatImporte(data.CuotaTotal)),
             new XElement(ns + "ImporteTotal", RegistroAltaXmlBuilder.FormatImporte(data.ImporteTotal)),
@@ -208,6 +214,31 @@ public sealed class RegistroAltaXmlBuilderAdapter : IRegistroAltaXmlBuilder
         {
             throw new InvalidOperationException(
                 $"Faltan datos de VeriFactu:SistemaInformatico: {string.Join(", ", missing)}.");
+        }
+
+        if (data.TipoFactura == "F1")
+        {
+            if (string.IsNullOrWhiteSpace(data.RecipientNif) ||
+                string.IsNullOrWhiteSpace(data.RecipientName))
+            {
+                throw new InvalidOperationException(
+                    "RegistroAlta F1 requiere el bloque Destinatarios.");
+            }
+
+            if (data.RecipientNif.Trim().Length != 9)
+            {
+                throw new InvalidOperationException(
+                    "El NIF del destinatario debe tener exactamente 9 caracteres.");
+            }
+
+            if (string.Equals(
+                    taxpayer.Nif.Trim(),
+                    data.RecipientNif.Trim(),
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException(
+                    "El NIF del destinatario debe ser distinto del NIF del obligado emisor.");
+            }
         }
 
         if (data.Detalles.Count == 0)
