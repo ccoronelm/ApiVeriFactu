@@ -1,72 +1,35 @@
 namespace gesFactu.Domain.Entities;
 
 /// <summary>
-/// Mensaje de outbox para garantizar entrega confiable a AEAT.
-/// 
-/// Implementa el patrón Transactional Outbox:
-/// - Se crea atomicamente con BillingRecord en la misma transacción
-/// - Se procesa asincronamente por un worker background
-/// - Garantiza idempotencia y no duplicados
-/// 
-/// Ref: /VERIFACTU - Garantía de entrega de registros
+/// Mensaje de Transactional Outbox para una remisiÃ³n a AEAT.
 /// </summary>
 public class OutboxMessage
 {
-    /// <summary>
-    /// Identificador único del mensaje.
-    /// </summary>
     public long Id { get; set; }
-
-    /// <summary>
-    /// ID correlativo para rastrear este envío a través del sistema.
-    /// Única en la tabla para detectar duplicados.
-    /// </summary>
     public required Guid CorrelationId { get; set; }
-
-    /// <summary>
-    /// ID del agregado (BillingRecord) relacionado.
-    /// </summary>
     public required int AggregateId { get; set; }
-
-    /// <summary>
-    /// Tipo del agregado. Siempre "BillingRecord" en gesFactu.
-    /// </summary>
     public required string AggregateType { get; set; } = "BillingRecord";
-
-    /// <summary>
-    /// Tipo de evento. Ej: "BillingRecordSubmittedToAEAT".
-    /// </summary>
     public required string EventType { get; set; }
-
-    /// <summary>
-    /// Payload del evento serializado a JSON.
-    /// Contiene los datos necesarios para reintentarlo.
-    /// </summary>
     public required string Payload { get; set; }
-
-    /// <summary>
-    /// Timestamp de creación (UTC).
-    /// </summary>
     public required DateTime CreatedAt { get; set; }
-
-    /// <summary>
-    /// Timestamp de procesamiento exitoso (UTC).
-    /// Null si no ha sido procesado.
-    /// </summary>
     public DateTime? ProcessedAt { get; set; }
-
-    /// <summary>
-    /// Número de intentos de procesamiento realizados.
-    /// </summary>
     public int ProcessingAttempts { get; set; }
-
-    /// <summary>
-    /// Último error de procesamiento (si aplica).
-    /// </summary>
     public string? LastProcessingError { get; set; }
+    public bool IsProcessed { get; set; }
 
     /// <summary>
-    /// Indica si el mensaje fue procesado exitosamente.
+    /// PrÃ³ximo instante UTC en el que puede volver a intentarse.
+    /// Null significa disponible inmediatamente.
     /// </summary>
-    public bool IsProcessed { get; set; }
+    public DateTime? NextAttemptAt { get; set; }
+
+    /// <summary>
+    /// Identificador de la instancia/worker que ha reclamado temporalmente el mensaje.
+    /// </summary>
+    public string? LockedBy { get; set; }
+
+    /// <summary>
+    /// Fin UTC de la concesiÃ³n. Permite recuperar mensajes tras caÃ­da del worker.
+    /// </summary>
+    public DateTime? LockedUntil { get; set; }
 }
