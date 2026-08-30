@@ -27,6 +27,7 @@ namespace gesFactu.Infrastructure.Migrations
                     b.Property<int>("Id").ValueGeneratedOnAdd().HasColumnType("integer");
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
                     b.Property<string>("AeatSubmissionId").HasMaxLength(100).HasColumnType("character varying(100)");
+                    b.Property<int?>("CancelsBillingRecordId").HasColumnType("integer");
                     b.Property<string>("ComputedHash").IsRequired().HasMaxLength(64).HasColumnType("character varying(64)");
                     b.Property<DateTime?>("CreateDate").ValueGeneratedOnAdd().HasColumnType("timestamp with time zone").HasDefaultValueSql("CURRENT_TIMESTAMP");
                     b.Property<string>("CreatedBy").HasMaxLength(256).HasColumnType("character varying(256)");
@@ -45,16 +46,18 @@ namespace gesFactu.Infrastructure.Migrations
                     b.Property<string>("PreviousRecordHash").HasMaxLength(64).HasColumnType("character varying(64)");
                     b.Property<string>("RecipientName").IsRequired().HasMaxLength(120).HasColumnType("character varying(120)");
                     b.Property<string>("RecipientNif").IsRequired().HasMaxLength(9).HasColumnType("character varying(9)");
+                    b.Property<string>("RecordType").IsRequired().ValueGeneratedOnAdd().HasMaxLength(16).HasColumnType("character varying(16)").HasDefaultValue("Alta");
                     b.Property<string>("RegisterTimestamp").IsRequired().HasMaxLength(25).HasColumnType("character varying(25)");
                     b.Property<Guid?>("SubmissionCorrelationId").HasColumnType("uuid");
                     b.Property<string>("Status").IsRequired().ValueGeneratedOnAdd().HasMaxLength(50).HasColumnType("character varying(50)").HasDefaultValue("Pendiente");
                     b.Property<decimal>("TotalAmount").HasPrecision(18, 2).HasColumnType("numeric(18,2)");
                     b.Property<decimal>("TotalTaxAmount").HasPrecision(18, 2).HasColumnType("numeric(18,2)");
                     b.HasKey("Id");
+                    b.HasIndex("CancelsBillingRecordId").HasDatabaseName("IX_BillingRecords_CancelsBillingRecordId");
                     b.HasIndex("PreviousBillingRecordId").HasDatabaseName("IX_BillingRecords_PreviousBillingRecordId");
                     b.HasIndex("SubsanatesBillingRecordId").HasDatabaseName("IX_BillingRecords_SubsanatesBillingRecordId");
                     b.HasIndex("IssuerNif", "Id").HasDatabaseName("IX_BillingRecords_Issuer_GenerationOrder");
-                    b.HasIndex("IssuerNif", "FiscalInvoiceNumber", "IssueDate").IsUnique().HasFilter("\"SubsanatesBillingRecordId\" IS NULL").HasDatabaseName("UX_BillingRecords_FiscalIdentity");
+                    b.HasIndex("IssuerNif", "FiscalInvoiceNumber", "IssueDate").IsUnique().HasFilter("\"RecordType\" = 'Alta' AND \"SubsanatesBillingRecordId\" IS NULL").HasDatabaseName("UX_BillingRecords_FiscalIdentity");
                     b.ToTable("BillingRecords", (string)null);
                 });
 
