@@ -24,6 +24,13 @@ public class BillingRecord : BaseDomainModel
     public DateOnly IssueDate { get; set; }
 
     public required string IssuerName { get; set; }
+
+    /// <summary>
+    /// Destinatario obligatorio para facturas F1.
+    /// </summary>
+    public string RecipientNif { get; set; } = string.Empty;
+    public string RecipientName { get; set; } = string.Empty;
+
     public required string Description { get; set; }
 
     public decimal TotalAmount { get; set; }
@@ -66,6 +73,8 @@ public class BillingRecord : BaseDomainModel
     public static BillingRecord Create(
         InvoiceIdentifier invoiceIdentifier,
         string issuerName,
+        string recipientNif,
+        string recipientName,
         string description,
         Money totalAmount,
         Money totalTaxAmount,
@@ -78,8 +87,35 @@ public class BillingRecord : BaseDomainModel
         if (string.IsNullOrWhiteSpace(issuerName))
             throw new InvalidOperationException("El nombre del emisor es requerido");
 
+        if (issuerName.Trim().Length > 120)
+            throw new InvalidOperationException("El nombre del emisor no puede superar 120 caracteres");
+
+        if (string.IsNullOrWhiteSpace(recipientNif))
+            throw new InvalidOperationException("El NIF del destinatario es requerido para F1");
+
+        if (recipientNif.Trim().Length != 9)
+            throw new InvalidOperationException("El NIF del destinatario debe tener exactamente 9 caracteres");
+
+        if (string.Equals(
+                invoiceIdentifier.IssuerNif.Value,
+                recipientNif.Trim(),
+                StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException(
+                "El NIF del destinatario debe ser distinto del NIF del obligado emisor");
+        }
+
+        if (string.IsNullOrWhiteSpace(recipientName))
+            throw new InvalidOperationException("El nombre o razón social del destinatario es requerido para F1");
+
+        if (recipientName.Trim().Length > 120)
+            throw new InvalidOperationException("El nombre o razón social del destinatario no puede superar 120 caracteres");
+
         if (string.IsNullOrWhiteSpace(description))
             throw new InvalidOperationException("La descripción de la operación es requerida");
+
+        if (description.Trim().Length > 500)
+            throw new InvalidOperationException("La descripción de la operación no puede superar 500 caracteres");
 
         if (totalTaxAmount.Amount > totalAmount.Amount)
             throw new InvalidOperationException(
@@ -115,8 +151,10 @@ public class BillingRecord : BaseDomainModel
             InvoiceNumber = invoiceIdentifier.Number.Value,
             FiscalInvoiceNumber = fiscalInvoiceNumber,
             IssueDate = invoiceIdentifier.IssueDate,
-            IssuerName = issuerName,
-            Description = description,
+            IssuerName = issuerName.Trim(),
+            RecipientNif = recipientNif.Trim().ToUpperInvariant(),
+            RecipientName = recipientName.Trim(),
+            Description = description.Trim(),
             TotalAmount = totalAmount.Amount,
             TotalTaxAmount = totalTaxAmount.Amount,
             RegisterTimestamp = timestamp,
