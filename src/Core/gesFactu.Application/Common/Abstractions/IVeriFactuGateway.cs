@@ -99,15 +99,78 @@ public record VeriFactuSubmissionResult
 public record VeriFactuQueryRequest
 {
     public required string TaxpayerNif { get; init; }
-    public required string SubmissionId { get; init; }
+    public required string TaxpayerName { get; init; }
+    public required string FiscalYear { get; init; }
+    public required string Period { get; init; }
+
+    /// <summary>Número serie+factura completo tal como lo identifica AEAT.</summary>
+    public string? InvoiceNumber { get; init; }
+
+    public string? CounterpartyNif { get; init; }
+    public string? CounterpartyName { get; init; }
+
+    public DateOnly? IssueDate { get; init; }
+    public DateOnly? IssueDateFrom { get; init; }
+    public DateOnly? IssueDateTo { get; init; }
+
+    public string? ExternalReference { get; init; }
+
+    public VeriFactuSystemFilter? System { get; init; }
+
+    /// <summary>
+    /// Clave devuelta por AEAT en la página anterior.
+    /// </summary>
+    public VeriFactuPaginationKey? PaginationKey { get; init; }
+
+    public bool ShowIssuerName { get; init; }
+    public bool ShowSystemInformation { get; init; }
+}
+
+public record VeriFactuSystemFilter
+{
+    public required string ProducerName { get; init; }
+    public required string ProducerNif { get; init; }
+    public required string SystemId { get; init; }
+    public required string InstallationNumber { get; init; }
+    public string? SystemName { get; init; }
+    public string? Version { get; init; }
+}
+
+public record VeriFactuPaginationKey
+{
+    public required string IssuerNif { get; init; }
+    public required string InvoiceNumber { get; init; }
+    public required DateOnly IssueDate { get; init; }
 }
 
 public record VeriFactuQueryResult
 {
-    public required string SubmissionId { get; init; }
-    public required string Status { get; init; }
-    public required string StatusDescription { get; init; }
-    public string? AdditionalDetails { get; init; }
+    public required string FiscalYear { get; init; }
+    public required string Period { get; init; }
+    public required string Result { get; init; }
+    public required bool HasMorePages { get; init; }
+    public VeriFactuPaginationKey? NextPageKey { get; init; }
+    public required IReadOnlyList<VeriFactuQueryRecord> Records { get; init; }
+    public string? RawResponsePayload { get; init; }
+}
+
+public record VeriFactuQueryRecord
+{
+    public required string IssuerNif { get; init; }
+    public required string InvoiceNumber { get; init; }
+    public required DateOnly IssueDate { get; init; }
+    public string? IssuerName { get; init; }
+    public string? InvoiceType { get; init; }
+    public string? RectificationType { get; init; }
+    public string? Description { get; init; }
+    public decimal? TotalTaxAmount { get; init; }
+    public decimal? TotalAmount { get; init; }
+    public string? Hash { get; init; }
+    public string? RegisterTimestamp { get; init; }
+    public required string RecordStatus { get; init; }
+    public string? ErrorCode { get; init; }
+    public string? ErrorDescription { get; init; }
+    public DateTimeOffset? LastModifiedAt { get; init; }
 }
 
 public record VeriFactuCancellationRequest
