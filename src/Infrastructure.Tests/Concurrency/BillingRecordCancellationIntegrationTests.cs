@@ -32,8 +32,8 @@ public sealed class BillingRecordCancellationIntegrationTests
 
             await using (var context = CreateContext(connectionString))
             {
-                var first = await context.BillingRecords.SingleAsync(x => x.Id == firstId);
-                first.Status = "Aceptado";
+                var firstInSetup = await context.BillingRecords.SingleAsync(x => x.Id == firstId);
+                firstInSetup.Status = "Aceptado";
                 await context.SaveChangesAsync();
             }
 
