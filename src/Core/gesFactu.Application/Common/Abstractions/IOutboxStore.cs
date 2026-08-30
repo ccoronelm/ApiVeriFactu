@@ -47,6 +47,12 @@ public interface IOutboxStore
         Guid correlationId,
         CancellationToken cancellationToken = default);
 
+    Task<bool> ExistsForAggregateEventAsync(
+        string aggregateType,
+        int aggregateId,
+        string eventType,
+        CancellationToken cancellationToken = default);
+
     Task AddAsync(
         OutboxMessage message,
         CancellationToken cancellationToken = default);
