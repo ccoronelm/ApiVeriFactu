@@ -187,11 +187,6 @@ public sealed class VeriFactuGatewaySoapClient : IVeriFactuGateway
             response.RawBody);
     }
 
-    public Task<VeriFactuCancellationResult> CancelBillingRecordAsync(
-        VeriFactuCancellationRequest request,
-        CancellationToken cancellationToken = default)
-        => throw new NotImplementedException(
-            "Anulación no implementada en esta fase. Solo se soporta RegistroAlta.");
 
     private static XDocument BuildQuerySoapEnvelope(string queryXml)
     {
