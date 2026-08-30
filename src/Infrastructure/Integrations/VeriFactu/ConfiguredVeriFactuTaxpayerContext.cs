@@ -1,17 +1,22 @@
 using gesFactu.Application.Common.Abstractions;
-using Microsoft.Extensions.Options;
 
 namespace gesFactu.Infrastructure.Integrations.VeriFactu;
 
-public sealed class ConfiguredVeriFactuTaxpayerContext : IVeriFactuTaxpayerContext
+/// <summary>
+/// Compatibilidad mono-obligado. En una instalación multiempresa no existe
+/// un obligado implícito y esta abstracción falla de forma explícita.
+/// </summary>
+public sealed class ConfiguredVeriFactuTaxpayerContext
+    : IVeriFactuTaxpayerContext
 {
-    private readonly VeriFactuOptions _options;
+    private readonly IVeriFactuTaxpayerRegistry _registry;
 
-    public ConfiguredVeriFactuTaxpayerContext(IOptions<VeriFactuOptions> options)
+    public ConfiguredVeriFactuTaxpayerContext(
+        IVeriFactuTaxpayerRegistry registry)
     {
-        _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
+        _registry = registry;
     }
 
-    public string Nif => _options.Taxpayer.Nif;
-    public string Name => _options.Taxpayer.Name;
+    public string Nif => _registry.ResolveDefault().Nif;
+    public string Name => _registry.ResolveDefault().Name;
 }
