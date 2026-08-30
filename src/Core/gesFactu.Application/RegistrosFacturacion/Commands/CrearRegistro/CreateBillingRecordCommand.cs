@@ -18,7 +18,8 @@ public sealed record CreateBillingRecordCommand(
     string Description,
     decimal TotalAmount,
     decimal TotalTaxAmount,
-    string InvoiceType = "F1"
+    string InvoiceType = "F1",
+    IReadOnlyList<BillingTaxDetailInput>? TaxDetails = null
 ) : IRequest<Result<CreateBillingRecordResponse>>;
 
 public sealed record CreateBillingRecordResponse(

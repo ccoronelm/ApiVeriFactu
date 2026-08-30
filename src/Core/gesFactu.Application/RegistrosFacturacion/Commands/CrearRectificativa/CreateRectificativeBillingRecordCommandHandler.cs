@@ -145,6 +145,19 @@ public sealed class CreateRectificativeBillingRecordCommandHandler
         var total = ((ValueObjectResult<Money>.SuccessWithValue)totalResult).Value;
         var tax = ((ValueObjectResult<Money>.SuccessWithValue)taxResult).Value;
 
+        IReadOnlyList<BillingTaxDetail> taxDetails;
+        try
+        {
+            taxDetails = BillingTaxDetailFactory.Create(
+                command.TaxDetails,
+                total.Amount,
+                tax.Amount);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Validation(nameof(command.TaxDetails), ex.Message);
+        }
+
         try
         {
             await using var transaction =
@@ -195,6 +208,8 @@ public sealed class CreateRectificativeBillingRecordCommandHandler
                 previous.ComputedHash,
                 timestamp,
                 invoiceType);
+
+            record.SetTaxDetails(taxDetails);
 
             record.RectifiesBillingRecordId = source.Id;
             record.RectificationType = rectificationType;

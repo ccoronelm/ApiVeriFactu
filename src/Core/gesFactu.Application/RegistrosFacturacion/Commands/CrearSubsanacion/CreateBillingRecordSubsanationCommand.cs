@@ -14,7 +14,8 @@ public sealed record CreateBillingRecordSubsanationCommand(
     string? RecipientName,
     string? Description,
     decimal? TotalAmount,
-    decimal? TotalTaxAmount)
+    decimal? TotalTaxAmount,
+    IReadOnlyList<BillingTaxDetailInput>? TaxDetails = null)
     : IRequest<Result<CreateBillingRecordSubsanationResponse>>;
 
 public sealed record CreateBillingRecordSubsanationResponse(

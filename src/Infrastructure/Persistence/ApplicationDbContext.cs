@@ -18,6 +18,7 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
     }
 
     public DbSet<BillingRecord> BillingRecords { get; set; } = null!;
+    public DbSet<BillingTaxDetail> BillingTaxDetails { get; set; } = null!;
     public DbSet<OutboxMessage> OutboxMessages { get; set; } = null!;
     public DbSet<DeadLetterMessage> DeadLetterMessages { get; set; } = null!;
     public DbSet<SubmissionAttempt> SubmissionAttempts { get; set; } = null!;
@@ -77,6 +78,7 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
         base.OnModelCreating(modelBuilder);
 
         modelBuilder.ApplyConfiguration(new BillingRecordConfiguration());
+        modelBuilder.ApplyConfiguration(new BillingTaxDetailConfiguration());
         modelBuilder.ApplyConfiguration(new OutboxMessageConfiguration());
         modelBuilder.ApplyConfiguration(new DeadLetterMessageConfiguration());
         modelBuilder.ApplyConfiguration(new SubmissionAttemptConfiguration());

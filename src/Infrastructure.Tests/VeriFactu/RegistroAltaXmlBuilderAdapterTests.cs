@@ -405,4 +405,87 @@ public sealed class RegistroAltaXmlBuilderAdapterTests
     }
 
 
+    [Fact]
+    public async Task BuildRegFactuXml_DesglosesMixtosYRecargo_ValidaXsdOficial()
+    {
+        var xmlBuilder = new RegistroAltaXmlBuilderAdapter(
+            Options.Create(CreateOptions()));
+        var baseData = CreateRegistroAltaData(
+            "MIX00001",
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
+
+        var data = new RegistroAltaData
+        {
+            IssuerNif = baseData.IssuerNif,
+            IssuerName = baseData.IssuerName,
+            InvoiceSeries = "MIX/",
+            InvoiceNumber = "00001",
+            IssueDate = baseData.IssueDate,
+            RecipientNif = baseData.RecipientNif,
+            RecipientName = baseData.RecipientName,
+            IsSubsanacion = false,
+            TipoFactura = "F1",
+            Description = "Desgloses fiscales mixtos",
+            CuotaTotal = 31.20m,
+            ImporteTotal = 231.20m,
+            Detalles =
+            [
+                new DetalleDesgloseData
+                {
+                    Impuesto = "01", ClaveRegimen = "01",
+                    CalificacionOperacion = "S1",
+                    TipoImpositivo = 21m, BaseImponible = 100m,
+                    CuotaRepercutida = 21m,
+                    TipoRecargoEquivalencia = 5.2m,
+                    CuotaRecargoEquivalencia = 5.2m
+                },
+                new DetalleDesgloseData
+                {
+                    Impuesto = "01", ClaveRegimen = "01",
+                    CalificacionOperacion = "S1",
+                    TipoImpositivo = 10m, BaseImponible = 50m,
+                    CuotaRepercutida = 5m
+                },
+                new DetalleDesgloseData
+                {
+                    Impuesto = "01", ClaveRegimen = "01",
+                    CalificacionOperacion = string.Empty,
+                    OperacionExenta = "E1",
+                    BaseImponible = 30m
+                },
+                new DetalleDesgloseData
+                {
+                    Impuesto = "01", ClaveRegimen = "01",
+                    CalificacionOperacion = "N1",
+                    BaseImponible = 20m
+                }
+            ],
+            ComputedHash = baseData.ComputedHash,
+            PreviousRecordHash = null,
+            PreviousIssueDate = null,
+            PreviousIssuerNif = null,
+            PreviousInvoiceSeries = null,
+            PreviousInvoiceNumber = null,
+            FechaHoraHusoGenRegistro = baseData.FechaHoraHusoGenRegistro
+        };
+
+        var xml = xmlBuilder.BuildRegFactuXml(data);
+        var nsSf = (System.Xml.Linq.XNamespace)
+            "https://www2.agenciatributaria.gob.es/static_files/common/internet/dep/aplicaciones/es/aeat/tike/cont/ws/SuministroInformacion.xsd";
+        var doc = System.Xml.Linq.XDocument.Parse(xml);
+
+        Assert.Equal(4, doc.Descendants(nsSf + "DetalleDesglose").Count());
+        Assert.Single(doc.Descendants(nsSf + "OperacionExenta"));
+        Assert.Single(doc.Descendants(nsSf + "TipoRecargoEquivalencia"));
+        Assert.Single(doc.Descendants(nsSf + "CuotaRecargoEquivalencia"));
+
+        var result = await CreateValidator().ValidateAsync(
+            xml,
+            VeriFactuXmlSchemaType.BillingRecord);
+        Assert.True(
+            result.IsValid,
+            string.Join(" | ", result.Errors.Select(e => e.Message)));
+    }
+
+
 }

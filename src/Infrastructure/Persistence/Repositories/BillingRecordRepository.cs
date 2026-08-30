@@ -29,6 +29,7 @@ public sealed class BillingRecordRepository : IBillingRecordRepository
         int id,
         CancellationToken cancellationToken = default)
         => _dbContext.BillingRecords
+            .Include(r => r.TaxDetails)
             .FirstOrDefaultAsync(r => r.Id == id, cancellationToken);
 
     public Task<BillingRecord?> GetLastGeneratedRecordAsync(

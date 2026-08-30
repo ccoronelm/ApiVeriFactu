@@ -16,7 +16,8 @@ public sealed record CreateRectificativeBillingRecordCommand(
     string RectificationType,
     string Description,
     decimal TotalAmount,
-    decimal TotalTaxAmount)
+    decimal TotalTaxAmount,
+    IReadOnlyList<BillingTaxDetailInput>? TaxDetails = null)
     : IRequest<Result<CreateRectificativeBillingRecordResponse>>;
 
 public sealed record CreateRectificativeBillingRecordResponse(

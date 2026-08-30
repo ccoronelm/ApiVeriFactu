@@ -102,6 +102,12 @@ public sealed class DetalleDesgloseData
 
     /// <summary>Cuota repercutida.</summary>
     public decimal? CuotaRepercutida { get; init; }
+
+    /// <summary>Porcentaje de recargo de equivalencia, cuando corresponda.</summary>
+    public decimal? TipoRecargoEquivalencia { get; init; }
+
+    /// <summary>Cuota del recargo de equivalencia.</summary>
+    public decimal? CuotaRecargoEquivalencia { get; init; }
 }
 
 
