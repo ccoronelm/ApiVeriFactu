@@ -8,8 +8,8 @@ using gesFactu.Domain.ValueObjects;
 namespace gesFactu.Application.RegistrosFacturacion.Commands.CrearRegistro;
 
 /// <summary>
-/// Handler para el comando de crear un nuevo registro de facturación.
-/// Orquesta la validación, cálculo de hash y persistencia sin contener lógica fiscal.
+/// Handler para crear un nuevo registro de facturaciÃ³n.
+/// Orquesta validaciÃ³n, generaciÃ³n del timestamp fiscal, cÃ¡lculo de huella y persistencia.
 /// </summary>
 public sealed class CreateBillingRecordCommandHandler
     : IRequestHandler<CreateBillingRecordCommand, Result<CreateBillingRecordResponse>>
@@ -36,22 +36,20 @@ public sealed class CreateBillingRecordCommandHandler
         CancellationToken cancellationToken)
     {
         _logger.LogInformation(
-            "Creando registro de facturación para factura {Series}/{Number} del contribuyente {Nif}",
+            "Creando registro de facturaciÃ³n para factura {Series}/{Number} del contribuyente {Nif}",
             command.InvoiceSeries,
             command.InvoiceNumber,
             command.IssuerNif);
 
-        // Validar y crear Value Objects
-        var nipResult = TaxpayerNif.Create(command.IssuerNif);
-        if (nipResult is ValueObjectResult<TaxpayerNif>.ValidationError nipError)
+        var nifResult = TaxpayerNif.Create(command.IssuerNif);
+        if (nifResult is ValueObjectResult<TaxpayerNif>.ValidationError nifError)
         {
-            _logger.LogWarning("Validación fallida para NIF: {Message}", nipError.Message);
             return new Result<CreateBillingRecordResponse>.ValidationError(
                 nameof(command.IssuerNif),
-                nipError.Message);
+                nifError.Message);
         }
 
-        var nif = ((ValueObjectResult<TaxpayerNif>.SuccessWithValue)nipResult).Value;
+        var nif = ((ValueObjectResult<TaxpayerNif>.SuccessWithValue)nifResult).Value;
 
         var seriesResult = InvoiceSeries.Create(command.InvoiceSeries);
         if (seriesResult is ValueObjectResult<InvoiceSeries>.ValidationError seriesError)
@@ -73,17 +71,20 @@ public sealed class CreateBillingRecordCommandHandler
 
         var number = ((ValueObjectResult<InvoiceNumber>.SuccessWithValue)numberResult).Value;
 
-        // Parsear fecha
-        if (!DateTime.TryParseExact(command.IssueDate, "dd-MM-yyyy", null, System.Globalization.DateTimeStyles.None, out var issueDateTime))
+        if (!DateTime.TryParseExact(
+                command.IssueDate,
+                "dd-MM-yyyy",
+                System.Globalization.CultureInfo.InvariantCulture,
+                System.Globalization.DateTimeStyles.None,
+                out var issueDateTime))
         {
             return new Result<CreateBillingRecordResponse>.ValidationError(
                 nameof(command.IssueDate),
-                "Fecha de expedición inválida");
+                "Fecha de expediciÃ³n invÃ¡lida");
         }
 
         var issueDate = DateOnly.FromDateTime(issueDateTime);
 
-        // Crear identificador de factura
         var identifierResult = InvoiceIdentifier.Create(nif, series, number, issueDate);
         if (identifierResult is ValueObjectResult<InvoiceIdentifier>.ValidationError identifierError)
         {
@@ -92,9 +93,9 @@ public sealed class CreateBillingRecordCommandHandler
                 identifierError.Message);
         }
 
-        var identifier = ((ValueObjectResult<InvoiceIdentifier>.SuccessWithValue)identifierResult).Value;
+        var identifier =
+            ((ValueObjectResult<InvoiceIdentifier>.SuccessWithValue)identifierResult).Value;
 
-        // Crear Money objects
         var totalAmountResult = Money.Create(command.TotalAmount);
         if (totalAmountResult is ValueObjectResult<Money>.ValidationError amountError)
         {
@@ -103,7 +104,8 @@ public sealed class CreateBillingRecordCommandHandler
                 amountError.Message);
         }
 
-        var totalAmount = ((ValueObjectResult<Money>.SuccessWithValue)totalAmountResult).Value;
+        var totalAmount =
+            ((ValueObjectResult<Money>.SuccessWithValue)totalAmountResult).Value;
 
         var taxAmountResult = Money.Create(command.TotalTaxAmount);
         if (taxAmountResult is ValueObjectResult<Money>.ValidationError taxError)
@@ -113,51 +115,49 @@ public sealed class CreateBillingRecordCommandHandler
                 taxError.Message);
         }
 
-        var totalTaxAmount = ((ValueObjectResult<Money>.SuccessWithValue)taxAmountResult).Value;
+        var totalTaxAmount =
+            ((ValueObjectResult<Money>.SuccessWithValue)taxAmountResult).Value;
 
         try
         {
-            // Crear el registro de facturación (agregado raíz)
+            // Este valor se genera una sola vez y se persiste.
+            // El mismo valor se usa tanto en la huella como en FechaHoraHusoGenRegistro del XML.
+            var registerTimestamp = DateTimeOffset.Now.ToString(
+                "yyyy-MM-ddTHH:mm:sszzz",
+                System.Globalization.CultureInfo.InvariantCulture);
+
             var billingRecord = BillingRecord.Create(
                 identifier,
                 command.IssuerName,
                 command.Description,
                 totalAmount,
                 totalTaxAmount,
-                command.PreviousRecordHash);
+                command.PreviousRecordHash,
+                registerTimestamp);
 
-            // Calcular el hash del registro
             var hashInput = new BillingRecordHashInput
             {
-                PreviousHash = command.PreviousRecordHash ?? string.Empty,
-                IssuerNif = nif.Value,
-                InvoiceSeries = series.Value,
-                InvoiceNumber = number.Value,
-                IssueDate = command.IssueDate,
-                InvoiceType = "F1", // Factura ordinaria — Ref: SuministroInformacion.xsd ClaveTipoFacturaType
-                TotalAmount = totalAmount.Amount,
-                TotalTaxAmount = totalTaxAmount.Amount,
-                Description = command.Description,
-                // FechaHoraHusoGenRegistro: con huso horario local, no UTC "Z"
-                // Ref: /VERIFACTU/SuministroInformacion.xsd FechaHoraHusoGenRegistro (dateTime)
-                RegisterTimestamp = DateTimeOffset.Now.ToString("yyyy-MM-ddTHH:mm:sszzz",
+                PreviousHash = billingRecord.PreviousRecordHash ?? string.Empty,
+                IssuerNif = billingRecord.IssuerNif,
+                InvoiceSeries = billingRecord.InvoiceSeries,
+                InvoiceNumber = billingRecord.InvoiceNumber,
+                IssueDate = billingRecord.IssueDate.ToString(
+                    "dd-MM-yyyy",
                     System.Globalization.CultureInfo.InvariantCulture),
-                SoftwareId = string.Empty // No forma parte del input del hash según especificación AEAT
+                InvoiceType = "F1",
+                TotalAmount = billingRecord.TotalAmount,
+                TotalTaxAmount = billingRecord.TotalTaxAmount,
+                RegisterTimestamp = billingRecord.RegisterTimestamp
             };
 
             var calculatedHash = _hashCalculator.CalculateChainHash(hashInput);
             billingRecord.SetComputedHash(calculatedHash);
 
-            _logger.LogInformation(
-                "Hash calculado para registro: {Hash}",
-                calculatedHash);
-
-            // Persistir mediante repositorio
             await _repository.AddAsync(billingRecord, cancellationToken);
             await _dbContext.SaveChangesAsync(cancellationToken);
 
             _logger.LogInformation(
-                "Registro de facturación creado exitosamente: {RecordId} con hash {Hash}",
+                "Registro de facturaciÃ³n creado: {RecordId} con hash {Hash}",
                 billingRecord.Id,
                 calculatedHash);
 
@@ -172,7 +172,7 @@ public sealed class CreateBillingRecordCommandHandler
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error al crear registro de facturación");
+            _logger.LogError(ex, "Error al crear registro de facturaciÃ³n");
             return new Result<CreateBillingRecordResponse>.UnexpectedError(
                 $"Error al crear el registro: {ex.Message}");
         }
