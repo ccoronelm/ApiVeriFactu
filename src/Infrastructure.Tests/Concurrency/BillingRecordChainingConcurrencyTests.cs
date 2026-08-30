@@ -31,6 +31,8 @@ public sealed class BillingRecordChainingConcurrencyTests
                     "0001",
                     "30-08-2026",
                     "Emisor pruebas",
+                    "87654321B",
+                    "Destinatario pruebas",
                     "Factura A",
                     121m,
                     21m));
@@ -43,6 +45,8 @@ public sealed class BillingRecordChainingConcurrencyTests
                     "0900",
                     "30-08-2026",
                     "Emisor pruebas",
+                    "87654321B",
+                    "Destinatario pruebas",
                     "Factura B",
                     242m,
                     42m));
@@ -92,6 +96,8 @@ public sealed class BillingRecordChainingConcurrencyTests
                 "0042",
                 "30-08-2026",
                 "Emisor pruebas",
+                "87654321B",
+                "Destinatario pruebas",
                 "Factura duplicada",
                 121m,
                 21m);
