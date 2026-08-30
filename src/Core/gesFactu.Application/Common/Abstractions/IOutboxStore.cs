@@ -47,6 +47,13 @@ public interface IOutboxStore
         Guid correlationId,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Reactiva un mensaje previamente cerrado para una recuperación manual.
+    /// </summary>
+    Task<bool> RequeueAsync(
+        long messageId,
+        CancellationToken cancellationToken = default);
+
     Task<bool> ExistsForAggregateEventAsync(
         string aggregateType,
         int aggregateId,
