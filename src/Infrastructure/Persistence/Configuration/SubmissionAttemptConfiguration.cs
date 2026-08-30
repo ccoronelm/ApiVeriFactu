@@ -35,7 +35,7 @@ public class SubmissionAttemptConfiguration : IEntityTypeConfiguration<Submissio
             .HasMaxLength(50);
 
         builder.Property(x => x.ResponseDescription)
-            .HasMaxLength(1000);
+            .HasMaxLength(2000);
 
         builder.Property(x => x.ResponsePayload)
             .HasColumnType("nvarchar(max)");
