@@ -135,6 +135,8 @@ public sealed class OutboxProcessorIntegrationTests
         var record = BillingRecord.Create(
             invoiceIdentifier,
             "EMISOR PRUEBAS",
+            "87654321B",
+            "DESTINATARIO PRUEBAS",
             "Servicio de pruebas",
             total,
             tax,
