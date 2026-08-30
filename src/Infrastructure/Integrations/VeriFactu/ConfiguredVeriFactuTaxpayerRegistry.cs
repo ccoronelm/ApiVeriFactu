@@ -18,9 +18,9 @@ public sealed class ConfiguredVeriFactuTaxpayerRegistry
     public IReadOnlyList<VeriFactuTaxpayerIdentity> GetAll()
         => _options.GetConfiguredTaxpayers()
             .Select(x => new VeriFactuTaxpayerIdentity(
-                x.Key.Trim(),
-                x.Nif.Trim().ToUpperInvariant(),
-                x.Name.Trim()))
+                (x.Key ?? string.Empty).Trim(),
+                (x.Nif ?? string.Empty).Trim().ToUpperInvariant(),
+                (x.Name ?? string.Empty).Trim()))
             .ToArray();
 
     public VeriFactuTaxpayerIdentity Resolve(string selector)
@@ -46,7 +46,7 @@ public sealed class ConfiguredVeriFactuTaxpayerRegistry
     private static VeriFactuTaxpayerIdentity ToIdentity(
         VeriFactuTaxpayerProfileOptions profile)
         => new(
-            profile.Key.Trim(),
-            profile.Nif.Trim().ToUpperInvariant(),
-            profile.Name.Trim());
+            (profile.Key ?? string.Empty).Trim(),
+            (profile.Nif ?? string.Empty).Trim().ToUpperInvariant(),
+            (profile.Name ?? string.Empty).Trim());
 }
