@@ -25,6 +25,7 @@ public sealed class EnviarRegistroAEATCommandHandler
     private readonly IApplicationDbContext _dbContext;
     private readonly IOutboxStore _outboxStore;
     private readonly IRegistroAltaXmlBuilder _xmlBuilder;
+    private readonly IRegistroAnulacionXmlBuilder _cancellationXmlBuilder;
     private readonly IXmlSchemaValidator _xmlSchemaValidator;
     private readonly IHashCalculator _hashCalculator;
     private readonly ILogger<EnviarRegistroAEATCommandHandler> _logger;
@@ -34,6 +35,7 @@ public sealed class EnviarRegistroAEATCommandHandler
         IApplicationDbContext dbContext,
         IOutboxStore outboxStore,
         IRegistroAltaXmlBuilder xmlBuilder,
+        IRegistroAnulacionXmlBuilder cancellationXmlBuilder,
         IXmlSchemaValidator xmlSchemaValidator,
         IHashCalculator hashCalculator,
         ILogger<EnviarRegistroAEATCommandHandler> logger)
@@ -42,6 +44,7 @@ public sealed class EnviarRegistroAEATCommandHandler
         _dbContext = dbContext;
         _outboxStore = outboxStore;
         _xmlBuilder = xmlBuilder;
+        _cancellationXmlBuilder = cancellationXmlBuilder;
         _xmlSchemaValidator = xmlSchemaValidator;
         _hashCalculator = hashCalculator;
         _logger = logger;
@@ -205,6 +208,7 @@ public sealed class EnviarRegistroAEATCommandHandler
             var request = BillingRecordToVeriFactuMapper.MapToSubmissionRequest(
                 record,
                 _xmlBuilder,
+                _cancellationXmlBuilder,
                 previousRecord);
 
             var validation = await _xmlSchemaValidator.ValidateAsync(

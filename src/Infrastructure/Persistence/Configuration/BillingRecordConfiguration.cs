@@ -39,7 +39,13 @@ public sealed class BillingRecordConfiguration : IEntityTypeConfiguration<Billin
             .IsRequired()
             .HasMaxLength(25);
 
+        builder.Property(e => e.RecordType)
+            .IsRequired()
+            .HasMaxLength(16)
+            .HasDefaultValue(BillingRecord.AltaRecordType);
+
         builder.Property(e => e.SubsanatesBillingRecordId);
+        builder.Property(e => e.CancelsBillingRecordId);
 
         builder.Property(e => e.PreviousBillingRecordId);
 
@@ -101,11 +107,14 @@ public sealed class BillingRecordConfiguration : IEntityTypeConfiguration<Billin
                 e.IssueDate
             })
             .IsUnique()
-            .HasFilter("\"SubsanatesBillingRecordId\" IS NULL")
+            .HasFilter("\"RecordType\" = 'Alta' AND \"SubsanatesBillingRecordId\" IS NULL")
             .HasDatabaseName("UX_BillingRecords_FiscalIdentity");
 
         builder.HasIndex(e => e.SubsanatesBillingRecordId)
             .HasDatabaseName("IX_BillingRecords_SubsanatesBillingRecordId");
+
+        builder.HasIndex(e => e.CancelsBillingRecordId)
+            .HasDatabaseName("IX_BillingRecords_CancelsBillingRecordId");
 
         // Soporta la lectura del último RF generado por obligado tributario
         // dentro de una transacción SERIALIZABLE.

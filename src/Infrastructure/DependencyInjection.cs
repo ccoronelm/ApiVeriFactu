@@ -42,6 +42,7 @@ public static class DependencyInjection
         services.AddVeriFactuClient(configuration);
         services.AddScoped<IXmlSchemaValidator, XmlSchemaValidator>();
         services.AddScoped<IRegistroAltaXmlBuilder, RegistroAltaXmlBuilderAdapter>();
+        services.AddScoped<IRegistroAnulacionXmlBuilder, RegistroAnulacionXmlBuilderAdapter>();
         services.AddHostedService<OutboxProcessorService>();
 
         return services;

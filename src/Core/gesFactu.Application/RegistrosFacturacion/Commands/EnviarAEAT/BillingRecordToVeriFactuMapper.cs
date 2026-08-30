@@ -4,52 +4,54 @@ using gesFactu.Domain.Entities;
 namespace gesFactu.Application.RegistrosFacturacion.Commands.EnviarAEAT;
 
 /// <summary>
-/// Mapper que traduce un BillingRecord al payload de envío a AEAT.
-///
-/// El XML se genera mediante IRegistroAltaXmlBuilder en Infrastructure.
-/// FechaHoraHusoGenRegistro debe ser exactamente el mismo valor persistido
-/// que se usó para calcular la huella.
+/// Traduce un BillingRecord al XML de remisión AEAT correspondiente a su tipo:
+/// RegistroAlta o RegistroAnulacion.
 /// </summary>
 public static class BillingRecordToVeriFactuMapper
 {
     public static VeriFactuSubmissionRequest MapToSubmissionRequest(
         BillingRecord billingRecord,
-        IRegistroAltaXmlBuilder xmlBuilder,
+        IRegistroAltaXmlBuilder altaXmlBuilder,
+        IRegistroAnulacionXmlBuilder cancellationXmlBuilder,
         BillingRecord? previousRecord = null)
     {
         ArgumentNullException.ThrowIfNull(billingRecord);
-        ArgumentNullException.ThrowIfNull(xmlBuilder);
+        ArgumentNullException.ThrowIfNull(altaXmlBuilder);
+        ArgumentNullException.ThrowIfNull(cancellationXmlBuilder);
 
-        if (string.IsNullOrWhiteSpace(billingRecord.ComputedHash))
+        ValidateCommon(billingRecord, previousRecord);
+
+        var xmlContent = billingRecord.RecordType switch
         {
-            throw new InvalidOperationException(
-                "BillingRecord debe tener ComputedHash calculado antes de generar el XML de envío.");
-        }
+            BillingRecord.CancellationRecordType =>
+                BuildCancellationXml(
+                    billingRecord,
+                    cancellationXmlBuilder,
+                    previousRecord),
 
-        if (string.IsNullOrWhiteSpace(billingRecord.RegisterTimestamp))
+            BillingRecord.AltaRecordType =>
+                BuildAltaXml(
+                    billingRecord,
+                    altaXmlBuilder,
+                    previousRecord),
+
+            _ => throw new InvalidOperationException(
+                $"Tipo de registro no soportado: {billingRecord.RecordType}.")
+        };
+
+        return new VeriFactuSubmissionRequest
         {
-            throw new InvalidOperationException(
-                "BillingRecord debe tener RegisterTimestamp persistido antes de generar el XML de envío.");
-        }
+            TaxpayerNif = billingRecord.IssuerNif,
+            SignedXmlContent = xmlContent,
+            PreviousRecordHash = billingRecord.PreviousRecordHash
+        };
+    }
 
-        if (billingRecord.PreviousBillingRecordId.HasValue && previousRecord is null)
-        {
-            throw new InvalidOperationException(
-                "El RF anterior es obligatorio para construir Encadenamiento/RegistroAnterior.");
-        }
-
-        if (previousRecord is not null &&
-            (!billingRecord.PreviousBillingRecordId.HasValue ||
-             billingRecord.PreviousBillingRecordId.Value != previousRecord.Id ||
-             !string.Equals(
-                 billingRecord.PreviousRecordHash,
-                 previousRecord.ComputedHash,
-                 StringComparison.Ordinal)))
-        {
-            throw new InvalidOperationException(
-                "La referencia persistida al RF anterior no coincide con el registro proporcionado.");
-        }
-
+    private static string BuildAltaXml(
+        BillingRecord billingRecord,
+        IRegistroAltaXmlBuilder xmlBuilder,
+        BillingRecord? previousRecord)
+    {
         var baseImponible = billingRecord.TotalAmount - billingRecord.TotalTaxAmount;
         var detalles = new List<DetalleDesgloseData>
         {
@@ -59,7 +61,9 @@ public static class BillingRecordToVeriFactuMapper
                 ClaveRegimen = "01",
                 CalificacionOperacion = "S1",
                 TipoImpositivo = baseImponible > 0
-                    ? Math.Round(billingRecord.TotalTaxAmount / baseImponible * 100, 2)
+                    ? Math.Round(
+                        billingRecord.TotalTaxAmount / baseImponible * 100,
+                        2)
                     : (decimal?)null,
                 BaseImponible = baseImponible,
                 CuotaRepercutida = billingRecord.TotalTaxAmount
@@ -81,24 +85,82 @@ public static class BillingRecordToVeriFactuMapper
             CuotaTotal = billingRecord.TotalTaxAmount,
             ImporteTotal = billingRecord.TotalAmount,
             Detalles = detalles,
-
             ComputedHash = billingRecord.ComputedHash,
             PreviousRecordHash = billingRecord.PreviousRecordHash,
             PreviousIssueDate = previousRecord?.IssueDate,
             PreviousIssuerNif = previousRecord?.IssuerNif,
             PreviousInvoiceSeries = previousRecord?.InvoiceSeries,
             PreviousInvoiceNumber = previousRecord?.InvoiceNumber,
-
             FechaHoraHusoGenRegistro = billingRecord.RegisterTimestamp
         };
 
-        var xmlContent = xmlBuilder.BuildRegFactuXml(data);
+        return xmlBuilder.BuildRegFactuXml(data);
+    }
 
-        return new VeriFactuSubmissionRequest
+    private static string BuildCancellationXml(
+        BillingRecord billingRecord,
+        IRegistroAnulacionXmlBuilder xmlBuilder,
+        BillingRecord? previousRecord)
+    {
+        if (!billingRecord.CancelsBillingRecordId.HasValue)
         {
-            TaxpayerNif = billingRecord.IssuerNif,
-            SignedXmlContent = xmlContent,
-            PreviousRecordHash = billingRecord.PreviousRecordHash
+            throw new InvalidOperationException(
+                "RegistroAnulacion requiere CancelsBillingRecordId.");
+        }
+
+        var data = new RegistroAnulacionData
+        {
+            IssuerNif = billingRecord.IssuerNif,
+            IssuerName = billingRecord.IssuerName,
+            InvoiceSeries = billingRecord.InvoiceSeries,
+            InvoiceNumber = billingRecord.InvoiceNumber,
+            IssueDate = billingRecord.IssueDate,
+            ComputedHash = billingRecord.ComputedHash!,
+            PreviousRecordHash = billingRecord.PreviousRecordHash,
+            PreviousIssueDate = previousRecord?.IssueDate,
+            PreviousIssuerNif = previousRecord?.IssuerNif,
+            PreviousInvoiceSeries = previousRecord?.InvoiceSeries,
+            PreviousInvoiceNumber = previousRecord?.InvoiceNumber,
+            FechaHoraHusoGenRegistro = billingRecord.RegisterTimestamp,
+            SinRegistroPrevio = null,
+            RechazoPrevio = null
         };
+
+        return xmlBuilder.BuildRegFactuXml(data);
+    }
+
+    private static void ValidateCommon(
+        BillingRecord billingRecord,
+        BillingRecord? previousRecord)
+    {
+        if (string.IsNullOrWhiteSpace(billingRecord.ComputedHash))
+        {
+            throw new InvalidOperationException(
+                "BillingRecord debe tener ComputedHash antes de generar XML.");
+        }
+
+        if (string.IsNullOrWhiteSpace(billingRecord.RegisterTimestamp))
+        {
+            throw new InvalidOperationException(
+                "BillingRecord debe tener RegisterTimestamp antes de generar XML.");
+        }
+
+        if (billingRecord.PreviousBillingRecordId.HasValue && previousRecord is null)
+        {
+            throw new InvalidOperationException(
+                "El RF anterior es obligatorio para construir RegistroAnterior.");
+        }
+
+        if (previousRecord is not null &&
+            (!billingRecord.PreviousBillingRecordId.HasValue ||
+             billingRecord.PreviousBillingRecordId.Value != previousRecord.Id ||
+             !string.Equals(
+                 billingRecord.PreviousRecordHash,
+                 previousRecord.ComputedHash,
+                 StringComparison.Ordinal)))
+        {
+            throw new InvalidOperationException(
+                "La referencia persistida al RF anterior no coincide con el registro proporcionado.");
+        }
     }
 }

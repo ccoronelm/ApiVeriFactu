@@ -82,6 +82,41 @@ public sealed class Sha256HashCalculator : IHashCalculator
     }
 
     /// <summary>
+    /// Calcula la huella de un RegistroAnulacion.
+    /// Ref: documento oficial, apartados 3.b y 6.3.
+    /// </summary>
+    public string CalculateCancellationHash(CancellationRecordHashInput input)
+    {
+        ArgumentNullException.ThrowIfNull(input);
+
+        if (string.IsNullOrWhiteSpace(input.IssuerNif))
+            throw new ArgumentException("IssuerNif es obligatorio para la huella de anulación.", nameof(input));
+
+        if (string.IsNullOrWhiteSpace(input.InvoiceNumber))
+            throw new ArgumentException("InvoiceNumber es obligatorio para la huella de anulación.", nameof(input));
+
+        if (string.IsNullOrWhiteSpace(input.IssueDate))
+            throw new ArgumentException("IssueDate es obligatorio para la huella de anulación.", nameof(input));
+
+        if (string.IsNullOrWhiteSpace(input.RegisterTimestamp))
+            throw new ArgumentException("RegisterTimestamp es obligatorio para la huella de anulación.", nameof(input));
+
+        var nif = input.IssuerNif.Trim().ToUpperInvariant();
+        var numSerieFactura = string.IsNullOrWhiteSpace(input.InvoiceSeries)
+            ? input.InvoiceNumber.Trim()
+            : input.InvoiceSeries.Trim() + input.InvoiceNumber.Trim();
+
+        var cadena =
+            $"IDEmisorFacturaAnulada={nif}" +
+            $"&NumSerieFacturaAnulada={numSerieFactura}" +
+            $"&FechaExpedicionFacturaAnulada={input.IssueDate.Trim()}" +
+            $"&Huella={input.PreviousHash?.Trim() ?? string.Empty}" +
+            $"&FechaHoraHusoGenRegistro={input.RegisterTimestamp.Trim()}";
+
+        return CalculateSha256(cadena);
+    }
+
+    /// <summary>
     /// Formatea importes exactamente igual que RegistroAltaXmlBuilder.FormatImporte:
     /// siempre dos decimales con punto como separador. La huella se calcula sobre
     /// la representación textual enviada a AEAT, por lo que 21 debe ser "21.00".

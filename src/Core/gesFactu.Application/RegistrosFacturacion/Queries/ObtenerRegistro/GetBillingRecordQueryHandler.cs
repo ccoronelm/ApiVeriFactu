@@ -57,8 +57,11 @@ public sealed class GetBillingRecordQueryHandler
                 record.IsSubmitted,
                 record.CreateDate,
                 record.CreatedBy,
+                record.RecordType,
                 record.SubsanatesBillingRecordId,
-                record.SubsanatesBillingRecordId.HasValue
+                record.SubsanatesBillingRecordId.HasValue,
+                record.CancelsBillingRecordId,
+                record.RecordType == gesFactu.Domain.Entities.BillingRecord.CancellationRecordType
             );
 
             return new Result<BillingRecordDto>.SuccessWithValue(dto);

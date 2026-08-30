@@ -72,6 +72,7 @@ public sealed class SubmitConcurrencyTests
 
         var options = Options.Create(CreateOptions());
         var builder = new RegistroAltaXmlBuilderAdapter(options);
+        var cancellationBuilder = new RegistroAnulacionXmlBuilderAdapter(options);
 
         var validator = new XmlSchemaValidator(
             NullLogger<XmlSchemaValidator>.Instance,
@@ -82,6 +83,7 @@ public sealed class SubmitConcurrencyTests
             context,
             outboxStore,
             builder,
+            cancellationBuilder,
             validator,
             new Sha256HashCalculator(),
             NullLogger<EnviarRegistroAEATCommandHandler>.Instance);
