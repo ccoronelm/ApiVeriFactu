@@ -21,6 +21,7 @@ public sealed class EnviarRegistroAEATCommandHandler
 {
     private readonly IBillingRecordRepository _repository;
     private readonly IApplicationDbContext _dbContext;
+    private readonly IOutboxStore _outboxStore;
     private readonly IRegistroAltaXmlBuilder _xmlBuilder;
     private readonly IXmlSchemaValidator _xmlSchemaValidator;
     private readonly ILogger<EnviarRegistroAEATCommandHandler> _logger;
@@ -28,12 +29,14 @@ public sealed class EnviarRegistroAEATCommandHandler
     public EnviarRegistroAEATCommandHandler(
         IBillingRecordRepository repository,
         IApplicationDbContext dbContext,
+        IOutboxStore outboxStore,
         IRegistroAltaXmlBuilder xmlBuilder,
         IXmlSchemaValidator xmlSchemaValidator,
         ILogger<EnviarRegistroAEATCommandHandler> logger)
     {
         _repository = repository;
         _dbContext = dbContext;
+        _outboxStore = outboxStore;
         _xmlBuilder = xmlBuilder;
         _xmlSchemaValidator = xmlSchemaValidator;
         _logger = logger;
@@ -133,6 +136,27 @@ public sealed class EnviarRegistroAEATCommandHandler
                     $"El XML generado no cumple el XSD oficial AEAT: {details}");
             }
 
+            await using var transaction =
+                await _dbContext.BeginSerializableTransactionAsync(cancellationToken);
+
+            await _dbContext.AcquireExclusiveLockAsync(
+                $"VERIFACTU_SUBMIT:{record.Id}",
+                cancellationToken);
+
+            var alreadyQueued = await _outboxStore.ExistsForAggregateEventAsync(
+                "BillingRecord",
+                record.Id,
+                "BillingRecordSubmittedToAEAT",
+                cancellationToken);
+
+            if (alreadyQueued)
+            {
+                await transaction.RollbackAsync(cancellationToken);
+
+                return new Result<EnviarRegistroAEATResponse>.ConflictError(
+                    "El registro ya tiene una remisión AEAT en el Outbox.");
+            }
+
             var correlationId = Guid.NewGuid();
 
             record.MarkAsQueued(correlationId);
@@ -151,6 +175,7 @@ public sealed class EnviarRegistroAEATCommandHandler
 
             _dbContext.AddOutboxMessage(outboxMessage);
             await _dbContext.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
 
             _logger.LogInformation(
                 "Registro {BillingRecordId} validado por XSD y añadido al Outbox. CorrelationId={CorrelationId}",
