@@ -62,6 +62,8 @@ public class BillingRecordsController : ControllerBase
             request.InvoiceNumber,
             request.IssueDate,
             request.IssuerName,
+            request.RecipientNif,
+            request.RecipientName,
             request.Description,
             request.TotalAmount,
             request.TotalTaxAmount);
@@ -294,6 +296,16 @@ public sealed record CreateBillingRecordRequest
     /// Nombre o razón social del emisor
     /// </summary>
     public required string IssuerName { get; init; }
+
+    /// <summary>
+    /// NIF del destinatario. Obligatorio para F1.
+    /// </summary>
+    public required string RecipientNif { get; init; }
+
+    /// <summary>
+    /// Nombre o razón social del destinatario. Obligatorio para F1.
+    /// </summary>
+    public required string RecipientName { get; init; }
 
     /// <summary>
     /// Descripción de la operación/concepto
