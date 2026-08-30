@@ -1,90 +1,143 @@
-using Xunit;
+using gesFactu.Application.Common.Abstractions;
 using gesFactu.Infrastructure.Integrations.QRCode;
+using gesFactu.Infrastructure.Integrations.VeriFactu;
+using Microsoft.Extensions.Options;
+using Xunit;
 
 namespace gesFactu.Infrastructure.Tests.QRCode;
 
-/// <summary>
-/// Tests para el generador de códigos QR VERI*FACTU.
-/// </summary>
-public class QRCodeGeneratorTests
+public sealed class QRCodeGeneratorTests
 {
     [Fact]
-    public void GenerateQRContent_ReturnsValidURL()
+    public void BuildVerificationUrl_Test_CoincideConEjemploOficial()
     {
-        // Arrange
-        var generator = new QRCodeGenerator();
-        var submissionId = "ABC123";
-        var hash = "ABCDEF0123456789";
-        var issueDate = new DateOnly(2026, 8, 29);
+        var generator = CreateGenerator(VeriFactuEntorno.Test);
+        var data = new VeriFactuQrData
+        {
+            IssuerNif = "89890001K",
+            InvoiceSeries = string.Empty,
+            InvoiceNumber = "12345678-G33",
+            IssueDate = new DateOnly(2024, 9, 1),
+            TotalAmount = 241.4m
+        };
 
-        // Act
-        var qrContent = generator.GenerateQRContent(submissionId, hash, issueDate);
+        var url = generator.BuildVerificationUrl(data);
 
-        // Assert
-        Assert.NotNull(qrContent);
-        Assert.StartsWith("https://www.aeat.es/verifactu", qrContent);
-        Assert.Contains("ID=ABC123", qrContent);
-        Assert.Contains("HASH=ABCDEF0123456789", qrContent);
-        Assert.Contains("FECHA=20260829", qrContent);
+        Assert.Equal(
+            "https://prewww2.aeat.es/wlpl/TIKE-CONT/ValidarQR" +
+            "?nif=89890001K&numserie=12345678-G33" +
+            "&fecha=01-09-2024&importe=241.4",
+            url);
     }
 
     [Fact]
-    public void GenerateQRContent_EscapesSpecialCharacters()
+    public void BuildVerificationUrl_Production_UsaUrlOficial()
     {
-        // Arrange
-        var generator = new QRCodeGenerator();
-        var submissionId = "SUB-2026/08/29";
-        var hash = "hash+with/special&chars";
+        var generator = CreateGenerator(
+            VeriFactuEntorno.Production,
+            allowProduction: true);
 
-        // Act
-        var qrContent = generator.GenerateQRContent(submissionId, hash, new DateOnly(2026, 8, 29));
+        var url = generator.BuildVerificationUrl(new VeriFactuQrData
+        {
+            IssuerNif = "89890001K",
+            InvoiceSeries = "A/",
+            InvoiceNumber = "0001",
+            IssueDate = new DateOnly(2026, 8, 30),
+            TotalAmount = 121m
+        });
 
-        // Assert
-        Assert.DoesNotContain(" ", qrContent); // No espacios sin codificar
-        Assert.Contains("ID=SUB-2026%2F08%2F29", qrContent); // Diagonal codificada
-        Assert.Contains("HASH=hash%2Bwith%2Fspecial%26chars", qrContent); // Caracteres especiales codificados
+        Assert.StartsWith(
+            "https://www2.agenciatributaria.gob.es/wlpl/TIKE-CONT/ValidarQR?",
+            url);
+        Assert.Contains("numserie=A%2F0001", url);
+        Assert.Contains("fecha=30-08-2026", url);
+        Assert.Contains("importe=121", url);
     }
 
     [Fact]
-    public void GenerateQRContent_ThrowsOnNullSubmissionId()
+    public void BuildVerificationUrl_ProductionBloqueada_FallaCerrado()
     {
-        // Arrange
-        var generator = new QRCodeGenerator();
+        var generator = CreateGenerator(
+            VeriFactuEntorno.Production,
+            allowProduction: false);
 
-        // Act & Assert
+        Assert.Throws<InvalidOperationException>(() =>
+            generator.BuildVerificationUrl(new VeriFactuQrData
+            {
+                IssuerNif = "89890001K",
+                InvoiceSeries = "A/",
+                InvoiceNumber = "1",
+                IssueDate = new DateOnly(2026, 8, 30),
+                TotalAmount = 1m
+            }));
+    }
+
+    [Fact]
+    public void BuildVerificationUrl_AplicaUrlEncodingUtf8()
+    {
+        var generator = CreateGenerator(VeriFactuEntorno.Test);
+
+        var url = generator.BuildVerificationUrl(new VeriFactuQrData
+        {
+            IssuerNif = "89890001K",
+            InvoiceSeries = "A&",
+            InvoiceNumber = "0001",
+            IssueDate = new DateOnly(2026, 8, 30),
+            TotalAmount = 12.34m
+        });
+
+        Assert.Contains("numserie=A%260001", url);
+        Assert.DoesNotContain("numserie=A&0001", url);
+    }
+
+    [Fact]
+    public async Task GeneratePngAsync_DevuelvePngReal()
+    {
+        var generator = CreateGenerator(VeriFactuEntorno.Test);
+
+        var bytes = await generator.GeneratePngAsync(new VeriFactuQrData
+        {
+            IssuerNif = "89890001K",
+            InvoiceSeries = "A/",
+            InvoiceNumber = "0001",
+            IssueDate = new DateOnly(2026, 8, 30),
+            TotalAmount = 121m
+        });
+
+        Assert.True(bytes.Length > 100);
+        Assert.Equal(0x89, bytes[0]);
+        Assert.Equal((byte)'P', bytes[1]);
+        Assert.Equal((byte)'N', bytes[2]);
+        Assert.Equal((byte)'G', bytes[3]);
+        Assert.Equal(0x0D, bytes[4]);
+        Assert.Equal(0x0A, bytes[5]);
+        Assert.Equal(0x1A, bytes[6]);
+        Assert.Equal(0x0A, bytes[7]);
+    }
+
+    [Fact]
+    public void BuildVerificationUrl_RechazaMasDeDosDecimales()
+    {
+        var generator = CreateGenerator(VeriFactuEntorno.Test);
+
         Assert.Throws<ArgumentException>(() =>
-            generator.GenerateQRContent(null!, "hash", new DateOnly(2026, 8, 29)));
+            generator.BuildVerificationUrl(new VeriFactuQrData
+            {
+                IssuerNif = "89890001K",
+                InvoiceSeries = "A/",
+                InvoiceNumber = "0001",
+                IssueDate = new DateOnly(2026, 8, 30),
+                TotalAmount = 1.234m
+            }));
     }
 
-    [Fact]
-    public void GenerateQRContent_ThrowsOnNullHash()
-    {
-        // Arrange
-        var generator = new QRCodeGenerator();
-
-        // Act & Assert
-        Assert.Throws<ArgumentException>(() =>
-            generator.GenerateQRContent("SUB123", null!, new DateOnly(2026, 8, 29)));
-    }
-
-    [Fact]
-    public async Task GenerateAsync_ReturnsUTF8Bytes()
-    {
-        // Arrange
-        var generator = new QRCodeGenerator();
-        var submissionId = "SUB123";
-        var hash = "HASH123";
-        var issueDate = new DateOnly(2026, 8, 29);
-
-        // Act
-        var bytes = await generator.GenerateAsync(submissionId, hash, issueDate);
-
-        // Assert
-        Assert.NotNull(bytes);
-        Assert.NotEmpty(bytes);
-
-        // Decodificar y verificar que es el contenido esperado
-        var content = System.Text.Encoding.UTF8.GetString(bytes);
-        Assert.Equal(generator.GenerateQRContent(submissionId, hash, issueDate), content);
-    }
+    private static QRCodeGenerator CreateGenerator(
+        VeriFactuEntorno environment,
+        bool allowProduction = false)
+        => new(
+            Options.Create(new VeriFactuOptions
+            {
+                Environment = environment,
+                AllowProduction = allowProduction
+            }));
 }
