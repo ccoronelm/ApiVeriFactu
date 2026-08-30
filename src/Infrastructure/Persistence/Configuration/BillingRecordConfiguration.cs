@@ -39,6 +39,8 @@ public sealed class BillingRecordConfiguration : IEntityTypeConfiguration<Billin
             .IsRequired()
             .HasMaxLength(25);
 
+        builder.Property(e => e.SubsanatesBillingRecordId);
+
         builder.Property(e => e.PreviousBillingRecordId);
 
         builder.Property(e => e.PreviousRecordHash)
@@ -90,7 +92,8 @@ public sealed class BillingRecordConfiguration : IEntityTypeConfiguration<Billin
             .HasPrecision(18, 2)
             .IsRequired();
 
-        // Identidad fiscal del registro de alta que se remite a AEAT.
+        // La identidad fiscal es única para el alta inicial. Las subsanaciones
+        // reutilizan esa misma clave AEAT y quedan fuera del índice único.
         builder.HasIndex(e => new
             {
                 e.IssuerNif,
@@ -98,7 +101,11 @@ public sealed class BillingRecordConfiguration : IEntityTypeConfiguration<Billin
                 e.IssueDate
             })
             .IsUnique()
+            .HasFilter("\"SubsanatesBillingRecordId\" IS NULL")
             .HasDatabaseName("UX_BillingRecords_FiscalIdentity");
+
+        builder.HasIndex(e => e.SubsanatesBillingRecordId)
+            .HasDatabaseName("IX_BillingRecords_SubsanatesBillingRecordId");
 
         // Soporta la lectura del último RF generado por obligado tributario
         // dentro de una transacción SERIALIZABLE.
