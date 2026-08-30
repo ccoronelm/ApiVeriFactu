@@ -4,9 +4,9 @@ using gesFactu.Application.Common.Abstractions;
 namespace gesFactu.Infrastructure.Integrations.VeriFactu;
 
 /// <summary>
-/// Implementación stub/mock de IVeriFactuGateway para desarrollo y testing.
+/// ImplementaciÃ³n stub/mock de IVeriFactuGateway para desarrollo y testing.
 /// 
-/// En producción, esta clase será reemplazada por una que hable SOAP real con AEAT.
+/// En producciÃ³n, esta clase serÃ¡ reemplazada por una que hable SOAP real con AEAT.
 /// 
 /// Ref: /VERIFACTU - Estructura oficial de solicitudes/respuestas
 /// </summary>
@@ -27,14 +27,14 @@ public sealed class VeriFactuGatewayStub : IVeriFactuGateway
         ArgumentNullException.ThrowIfNull(request);
 
         _logger.LogInformation(
-            "STUB: Enviando registro de facturación a AEAT para NIF {TaxpayerNif}. " +
-            "En producción esto haría llamada SOAP real.",
+            "STUB: Enviando registro de facturaciÃ³n a AEAT para NIF {TaxpayerNif}. " +
+            "En producciÃ³n esto harÃ­a llamada SOAP real.",
             request.TaxpayerNif);
 
         // Simular latencia de red
         await Task.Delay(100, cancellationToken);
 
-        // Generar ID de envío simulado
+        // Generar ID de envÃ­o simulado
         var submissionId = $"STUB-{DateOnly.FromDateTime(DateTime.UtcNow):yyyyMMdd}-{Interlocked.Increment(ref _submissionIdCounter)}";
 
         var result = new VeriFactuSubmissionResult
@@ -62,22 +62,21 @@ public sealed class VeriFactuGatewayStub : IVeriFactuGateway
         ArgumentNullException.ThrowIfNull(request);
 
         _logger.LogInformation(
-            "STUB: Consultando estado de envío {SubmissionId} para NIF {TaxpayerNif}",
-            request.SubmissionId,
+            "STUB: Consultando registros AEAT de {FiscalYear}/{Period} para {TaxpayerNif}",
+            request.FiscalYear,
+            request.Period,
             request.TaxpayerNif);
 
-        // Simular latencia
         await Task.Delay(100, cancellationToken);
 
-        var result = new VeriFactuQueryResult
+        return new VeriFactuQueryResult
         {
-            SubmissionId = request.SubmissionId,
-            Status = "Aceptado",
-            StatusDescription = "El registro ha sido aceptado por AEAT (STUB)",
-            AdditionalDetails = "Mock implementation"
+            FiscalYear = request.FiscalYear,
+            Period = request.Period,
+            Result = "SinDatos",
+            HasMorePages = false,
+            Records = Array.Empty<VeriFactuQueryRecord>()
         };
-
-        return result;
     }
 
     public async Task<VeriFactuCancellationResult> CancelBillingRecordAsync(
@@ -101,14 +100,14 @@ public sealed class VeriFactuGatewayStub : IVeriFactuGateway
         {
             IsAccepted = true,
             StatusCode = "1000",
-            StatusDescription = "Cancelación procesada correctamente (STUB)",
+            StatusDescription = "CancelaciÃ³n procesada correctamente (STUB)",
             CancellationId = cancellationId,
             ResponseCode = AeatResponseCode.Success,
             AdditionalDetails = "Mock implementation"
         };
 
         _logger.LogInformation(
-            "STUB: Cancelación completada. CancellationId: {CancellationId}",
+            "STUB: CancelaciÃ³n completada. CancellationId: {CancellationId}",
             cancellationId);
 
         return result;
