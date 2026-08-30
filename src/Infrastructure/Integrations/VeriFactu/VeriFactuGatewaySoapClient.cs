@@ -317,6 +317,7 @@ public sealed class VeriFactuGatewaySoapClient : IVeriFactuGateway
             ErrorCode = errorCode,
             IsDuplicate = isDuplicate,
             DuplicateRecordStatus = linea?.DuplicateRecordStatus,
+            DuplicateRequestId = linea?.DuplicateRequestId,
             AdditionalDetails = extra.Count == 0
                 ? null
                 : string.Join(" | ", extra),
