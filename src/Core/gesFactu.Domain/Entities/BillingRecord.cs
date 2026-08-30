@@ -185,9 +185,12 @@ public class BillingRecord : BaseDomainModel
         if (description.Trim().Length > 500)
             throw new InvalidOperationException("La descripción de la operación no puede superar 500 caracteres");
 
-        if (totalTaxAmount.Amount > totalAmount.Amount)
+        if (normalizedInvoiceType is "F1" or "F2" &&
+            totalTaxAmount.Amount > totalAmount.Amount)
+        {
             throw new InvalidOperationException(
                 "La cuota de impuesto no puede ser mayor que el importe total");
+        }
 
         if (previousBillingRecordId.HasValue != !string.IsNullOrWhiteSpace(previousRecordHash))
         {
