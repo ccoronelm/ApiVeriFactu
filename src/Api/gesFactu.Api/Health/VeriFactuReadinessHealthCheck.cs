@@ -33,7 +33,7 @@ public sealed class VeriFactuReadinessHealthCheck : IHealthCheck
             }
 
             if (_options.Environment == VeriFactuEntorno.Production &&
-                _options.ClientMode != VeriFactuClientMode.Soap)
+                _options.ClientMode != "SoapClient")
             {
                 return Task.FromResult(
                     HealthCheckResult.Unhealthy(
@@ -48,7 +48,7 @@ public sealed class VeriFactuReadinessHealthCheck : IHealthCheck
                         "No hay obligados tributarios configurados."));
             }
 
-            if (_options.ClientMode == VeriFactuClientMode.Soap)
+            if (_options.ClientMode == "SoapClient")
             {
                 foreach (var taxpayer in taxpayers)
                 {
