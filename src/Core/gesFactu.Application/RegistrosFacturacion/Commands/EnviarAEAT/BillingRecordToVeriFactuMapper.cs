@@ -55,23 +55,47 @@ public static class BillingRecordToVeriFactuMapper
         BillingRecord? previousRecord,
         BillingRecord? rectifiedRecord)
     {
-        var baseImponible = billingRecord.TotalAmount - billingRecord.TotalTaxAmount;
-        var detalles = new List<DetalleDesgloseData>
+        IReadOnlyList<DetalleDesgloseData> detalles;
+
+        if (billingRecord.TaxDetails.Count > 0)
         {
-            new()
-            {
-                Impuesto = "01",
-                ClaveRegimen = "01",
-                CalificacionOperacion = "S1",
-                TipoImpositivo = baseImponible != 0
-                    ? Math.Round(
-                        billingRecord.TotalTaxAmount / baseImponible * 100,
-                        2)
-                    : (decimal?)null,
-                BaseImponible = baseImponible,
-                CuotaRepercutida = billingRecord.TotalTaxAmount
-            }
-        };
+            detalles = billingRecord.TaxDetails
+                .OrderBy(x => x.Id)
+                .Select(x => new DetalleDesgloseData
+                {
+                    Impuesto = x.TaxCode,
+                    ClaveRegimen = x.RegimeCode,
+                    CalificacionOperacion = x.OperationQualification ?? string.Empty,
+                    OperacionExenta = x.ExemptionCause,
+                    TipoImpositivo = x.TaxRate,
+                    BaseImponible = x.TaxBase,
+                    CuotaRepercutida = x.TaxAmount,
+                    TipoRecargoEquivalencia = x.EquivalenceSurchargeRate,
+                    CuotaRecargoEquivalencia = x.EquivalenceSurchargeAmount
+                })
+                .ToArray();
+        }
+        else
+        {
+            var baseImponible =
+                billingRecord.TotalAmount - billingRecord.TotalTaxAmount;
+            detalles =
+            [
+                new DetalleDesgloseData
+                {
+                    Impuesto = "01",
+                    ClaveRegimen = "01",
+                    CalificacionOperacion = "S1",
+                    TipoImpositivo = baseImponible != 0
+                        ? Math.Round(
+                            billingRecord.TotalTaxAmount / baseImponible * 100,
+                            2)
+                        : 0m,
+                    BaseImponible = baseImponible,
+                    CuotaRepercutida = billingRecord.TotalTaxAmount
+                }
+            ];
+        }
 
         if (billingRecord.RectifiesBillingRecordId.HasValue)
         {
