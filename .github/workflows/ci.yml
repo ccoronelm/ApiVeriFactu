@@ -58,6 +58,11 @@ jobs:
             exit 1
           fi
 
+          if git grep -n -E '"ApiKey"[[:space:]]*:[[:space:]]*"[^"]+"' -- '*.json' '*.yml' '*.yaml'; then
+            echo "A non-empty API key is committed."
+            exit 1
+          fi
+
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
