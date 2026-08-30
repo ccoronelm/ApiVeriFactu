@@ -70,7 +70,8 @@ public class BillingRecordsController : ControllerBase
             request.Description,
             request.TotalAmount,
             request.TotalTaxAmount,
-            request.InvoiceType);
+            request.InvoiceType,
+            MapTaxDetails(request.TaxDetails));
 
         var result = await _mediator.Send(command, cancellationToken);
 
@@ -216,7 +217,8 @@ public class BillingRecordsController : ControllerBase
                 request.RecipientName,
                 request.Description,
                 request.TotalAmount,
-                request.TotalTaxAmount),
+                request.TotalTaxAmount,
+                MapTaxDetails(request.TaxDetails)),
             cancellationToken);
 
         return result switch
@@ -514,6 +516,19 @@ public class BillingRecordsController : ControllerBase
             _ => StatusCode(StatusCodes.Status500InternalServerError)
         };
     }
+
+    private static IReadOnlyList<BillingTaxDetailInput>? MapTaxDetails(
+        IReadOnlyList<BillingTaxDetailRequest>? details)
+        => details?.Select(x => new BillingTaxDetailInput(
+            x.TaxCode,
+            x.RegimeCode,
+            x.OperationQualification,
+            x.ExemptionCause,
+            x.TaxRate,
+            x.TaxBase,
+            x.TaxAmount,
+            x.EquivalenceSurchargeRate,
+            x.EquivalenceSurchargeAmount)).ToArray();
 }
 
 /// <summary>
@@ -575,6 +590,9 @@ public sealed record CreateBillingRecordRequest
     /// Cuota total de impuesto
     /// </summary>
     public required decimal TotalTaxAmount { get; init; }
+
+    /// <summary>Desgloses fiscales. Entre 1 y 12. Si se omite se mantiene el desglose legacy S1.</summary>
+    public IReadOnlyList<BillingTaxDetailRequest>? TaxDetails { get; init; }
 }
 
 
@@ -605,4 +623,18 @@ public sealed record CreateRectificativeBillingRecordRequest
     public required string Description { get; init; }
     public required decimal TotalAmount { get; init; }
     public required decimal TotalTaxAmount { get; init; }
+    public IReadOnlyList<BillingTaxDetailRequest>? TaxDetails { get; init; }
+}
+
+public sealed record BillingTaxDetailRequest
+{
+    public string? TaxCode { get; init; } = "01";
+    public string? RegimeCode { get; init; } = "01";
+    public string? OperationQualification { get; init; }
+    public string? ExemptionCause { get; init; }
+    public decimal? TaxRate { get; init; }
+    public required decimal TaxBase { get; init; }
+    public decimal? TaxAmount { get; init; }
+    public decimal? EquivalenceSurchargeRate { get; init; }
+    public decimal? EquivalenceSurchargeAmount { get; init; }
 }
