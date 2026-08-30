@@ -4,20 +4,20 @@ using Microsoft.EntityFrameworkCore.Design;
 namespace gesFactu.Infrastructure.Persistence;
 
 /// <summary>
-/// Factory de diseño para ApplicationDbContext.
-/// Permite a EF Core Tools crear migraciones sin necesidad de una aplicación ejecutable.
+/// Factory de diseÃ±o para ApplicationDbContext.
+/// La credencial real nunca se guarda en Git: para tareas de EF puede
+/// proporcionarse mediante GESFACTU_DESIGN_CONNECTION o --connection.
 /// </summary>
 public class ApplicationDbContextFactory : IDesignTimeDbContextFactory<ApplicationDbContext>
 {
     public ApplicationDbContext CreateDbContext(string[] args)
     {
-        // Cadena de conexión por defecto para desarrollo/migraciones
-        // En producción, esto se configurará desde appsettings.json
-        const string connectionString = 
-            "Server=(localdb)\\mssqllocaldb;Database=gesFactuDb;Integrated Security=true;";
+        var connectionString =
+            Environment.GetEnvironmentVariable("GESFACTU_DESIGN_CONNECTION")
+            ?? "Host=localhost;Port=5432;Database=gesFactuDb;Username=gesfactu";
 
         var optionsBuilder = new DbContextOptionsBuilder<ApplicationDbContext>();
-        optionsBuilder.UseSqlServer(connectionString);
+        optionsBuilder.UseNpgsql(connectionString);
 
         return new ApplicationDbContext(optionsBuilder.Options);
     }
