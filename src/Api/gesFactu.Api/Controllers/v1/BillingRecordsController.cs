@@ -607,6 +607,7 @@ public sealed record CreateBillingRecordSubsanationRequest
     public string? Description { get; init; }
     public decimal? TotalAmount { get; init; }
     public decimal? TotalTaxAmount { get; init; }
+    public IReadOnlyList<BillingTaxDetailRequest>? TaxDetails { get; init; }
 }
 
 
