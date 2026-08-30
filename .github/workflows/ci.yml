@@ -35,6 +35,9 @@ jobs:
         with:
           dotnet-version: "8.0.404"
 
+      - name: Restore dotnet tools
+        run: dotnet tool restore
+
       - name: Restore application
         run: dotnet restore gesFactuSolucion.sln
 
@@ -43,6 +46,13 @@ jobs:
 
       - name: Build application
         run: dotnet build gesFactuSolucion.sln --configuration Release --no-restore
+
+      - name: Validate EF migrations
+        run: >
+          dotnet ef database update
+          --project src/Infrastructure/gesFactu.Infrastructure.csproj
+          --startup-project src/Api/gesFactu.Api/gesFactu.Api.csproj
+          --connection "Server=localhost,1433;Database=gesFactuMigrationCi;User Id=sa;Password=GesFactu_CI!2026_Strong;TrustServerCertificate=True;Encrypt=False"
 
       - name: Run infrastructure tests
         run: dotnet test src/Infrastructure.Tests/gesFactu.Infrastructure.Tests.csproj --configuration Release --no-restore --verbosity normal
