@@ -171,11 +171,21 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
             if (entry.State != EntityState.Modified)
                 continue;
 
+            var allowed = new HashSet<string>(
+                MutableBillingRecordProperties,
+                StringComparer.Ordinal);
+
+            if (IsInitialQueueTransition(entry))
+            {
+                allowed.Add(nameof(BillingRecord.RegisterTimestamp));
+                allowed.Add(nameof(BillingRecord.ComputedHash));
+            }
+
             var illegal = entry.Properties
                 .Where(p =>
                     p.IsModified &&
                     !Equals(p.OriginalValue, p.CurrentValue) &&
-                    !MutableBillingRecordProperties.Contains(p.Metadata.Name))
+                    !allowed.Contains(p.Metadata.Name))
                 .Select(p => p.Metadata.Name)
                 .ToArray();
 
@@ -210,6 +220,28 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
                     "Cree una subsanación o rectificación en lugar de modificarlo.");
             }
         }
+    }
+
+    private static bool IsInitialQueueTransition(
+        EntityEntry<BillingRecord> entry)
+    {
+        var isSubmitted = entry.Property(x => x.IsSubmitted);
+        var status = entry.Property(x => x.Status);
+        var correlation = entry.Property(x => x.SubmissionCorrelationId);
+
+        return Equals(isSubmitted.OriginalValue, false) &&
+               Equals(isSubmitted.CurrentValue, true) &&
+               string.Equals(
+                   status.OriginalValue?.ToString(),
+                   "Pendiente",
+                   StringComparison.Ordinal) &&
+               string.Equals(
+                   status.CurrentValue?.ToString(),
+                   "PendienteEnvio",
+                   StringComparison.Ordinal) &&
+               correlation.OriginalValue is null &&
+               correlation.CurrentValue is Guid value &&
+               value != Guid.Empty;
     }
 
     private void ValidateAuditLogAppendOnly()
