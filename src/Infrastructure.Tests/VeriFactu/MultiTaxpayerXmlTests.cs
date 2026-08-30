@@ -24,7 +24,8 @@ public sealed class MultiTaxpayerXmlTests
 
         var xml = builder.BuildRegFactuXml(CreateData(nif, name));
 
-        var ns = RegistroAltaXmlBuilder.NsSf;
+        var ns = (XNamespace)
+            "https://www2.agenciatributaria.gob.es/static_files/common/internet/dep/aplicaciones/es/aeat/tike/cont/ws/SuministroInformacion.xsd";
         var doc = XDocument.Parse(xml);
 
         Assert.Equal(
@@ -99,6 +100,11 @@ public sealed class MultiTaxpayerXmlTests
             ],
             ComputedHash =
                 "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+            PreviousRecordHash = null,
+            PreviousIssueDate = null,
+            PreviousIssuerNif = null,
+            PreviousInvoiceSeries = null,
+            PreviousInvoiceNumber = null,
             FechaHoraHusoGenRegistro = "2026-08-30T16:00:00+02:00"
         };
 
