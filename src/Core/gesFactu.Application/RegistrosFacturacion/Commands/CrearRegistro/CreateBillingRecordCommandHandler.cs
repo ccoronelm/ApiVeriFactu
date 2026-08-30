@@ -46,6 +46,41 @@ public sealed class CreateBillingRecordCommandHandler
 
         var nif = ((ValueObjectResult<TaxpayerNif>.SuccessWithValue)nifResult).Value;
 
+        var recipientNifResult = TaxpayerNif.Create(command.RecipientNif);
+        if (recipientNifResult is ValueObjectResult<TaxpayerNif>.ValidationError recipientNifError)
+        {
+            return new Result<CreateBillingRecordResponse>.ValidationError(
+                nameof(command.RecipientNif),
+                recipientNifError.Message);
+        }
+
+        var recipientNif =
+            ((ValueObjectResult<TaxpayerNif>.SuccessWithValue)recipientNifResult).Value;
+
+        if (string.Equals(
+                nif.Value,
+                recipientNif.Value,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return new Result<CreateBillingRecordResponse>.ValidationError(
+                nameof(command.RecipientNif),
+                "El NIF del destinatario debe ser distinto del NIF del obligado emisor.");
+        }
+
+        if (string.IsNullOrWhiteSpace(command.RecipientName))
+        {
+            return new Result<CreateBillingRecordResponse>.ValidationError(
+                nameof(command.RecipientName),
+                "El nombre o razón social del destinatario es obligatorio para F1.");
+        }
+
+        if (command.RecipientName.Trim().Length > 120)
+        {
+            return new Result<CreateBillingRecordResponse>.ValidationError(
+                nameof(command.RecipientName),
+                "El nombre o razón social del destinatario no puede superar 120 caracteres.");
+        }
+
         var seriesResult = InvoiceSeries.Create(command.InvoiceSeries);
         if (seriesResult is ValueObjectResult<InvoiceSeries>.ValidationError seriesError)
         {
@@ -175,6 +210,8 @@ public sealed class CreateBillingRecordCommandHandler
             var billingRecord = BillingRecord.Create(
                 identifier,
                 command.IssuerName,
+                recipientNif.Value,
+                command.RecipientName,
                 command.Description,
                 totalAmount,
                 totalTaxAmount,
