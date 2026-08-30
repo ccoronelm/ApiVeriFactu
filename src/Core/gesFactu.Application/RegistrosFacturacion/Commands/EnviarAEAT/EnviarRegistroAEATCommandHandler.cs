@@ -31,17 +31,20 @@ public sealed class EnviarRegistroAEATCommandHandler
     private readonly IBillingRecordRepository _repository;
     private readonly IOutboxStore _outboxStore;
     private readonly IApplicationDbContext _dbContext;
+    private readonly IRegistroAltaXmlBuilder _xmlBuilder;
     private readonly ILogger<EnviarRegistroAEATCommandHandler> _logger;
 
     public EnviarRegistroAEATCommandHandler(
         IBillingRecordRepository repository,
         IOutboxStore outboxStore,
         IApplicationDbContext dbContext,
+        IRegistroAltaXmlBuilder xmlBuilder,
         ILogger<EnviarRegistroAEATCommandHandler> logger)
     {
         _repository = repository;
         _outboxStore = outboxStore;
         _dbContext = dbContext;
+        _xmlBuilder = xmlBuilder;
         _logger = logger;
     }
 
@@ -89,8 +92,8 @@ public sealed class EnviarRegistroAEATCommandHandler
 
         try
         {
-            // 3. Mapear a solicitud AEAT
-            var request = BillingRecordToVeriFactuMapper.MapToSubmissionRequest(record, "");
+            // 3. Mapear a solicitud AEAT (el XML lo genera Infrastructure via IRegistroAltaXmlBuilder)
+            var request = BillingRecordToVeriFactuMapper.MapToSubmissionRequest(record, _xmlBuilder);
 
             // Crear correlationId único para este intento
             var correlationId = Guid.NewGuid();

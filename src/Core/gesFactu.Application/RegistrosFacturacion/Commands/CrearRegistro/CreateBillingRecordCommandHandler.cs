@@ -134,12 +134,15 @@ public sealed class CreateBillingRecordCommandHandler
                 InvoiceSeries = series.Value,
                 InvoiceNumber = number.Value,
                 IssueDate = command.IssueDate,
-                InvoiceType = string.Empty, // TODO: Incluir tipo de factura cuando sea disponible
+                InvoiceType = "F1", // Factura ordinaria — Ref: SuministroInformacion.xsd ClaveTipoFacturaType
                 TotalAmount = totalAmount.Amount,
                 TotalTaxAmount = totalTaxAmount.Amount,
                 Description = command.Description,
-                RegisterTimestamp = DateTime.UtcNow.ToString("o"), // ISO 8601 con zona UTC
-                SoftwareId = "gesFactu-1.0" // TODO: Configurar desde application settings
+                // FechaHoraHusoGenRegistro: con huso horario local, no UTC "Z"
+                // Ref: /VERIFACTU/SuministroInformacion.xsd FechaHoraHusoGenRegistro (dateTime)
+                RegisterTimestamp = DateTimeOffset.Now.ToString("yyyy-MM-ddTHH:mm:sszzz",
+                    System.Globalization.CultureInfo.InvariantCulture),
+                SoftwareId = string.Empty // No forma parte del input del hash según especificación AEAT
             };
 
             var calculatedHash = _hashCalculator.CalculateChainHash(hashInput);

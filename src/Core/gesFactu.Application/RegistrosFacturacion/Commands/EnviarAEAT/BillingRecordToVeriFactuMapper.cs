@@ -1,83 +1,94 @@
+using System.Globalization;
 using gesFactu.Application.Common.Abstractions;
 using gesFactu.Domain.Entities;
 
 namespace gesFactu.Application.RegistrosFacturacion.Commands.EnviarAEAT;
 
 /// <summary>
-/// Mapper que traduce modelos de dominio a solicitudes AEAT.
-/// 
-/// Parte de la Anti-Corruption Layer: convierte conceptos fiscales internos
-/// a estructuras AEAT SOAP/XML sin exponer WSDL en Domain.
-/// 
-/// Ref: /VERIFACTU - Estructura de RegistroFacturacionAltaType
+/// Mapper que traduce un BillingRecord al payload de envío a AEAT.
+///
+/// Responsabilidad: construir RegistroAltaData con los datos fiscales correctos
+/// y delegar la generación del XML a la capa de Infrastructure (IRegistroAltaXmlBuilder).
+///
+/// NO genera XML directamente — ese detalle pertenece a Infrastructure.
+///
+/// Ref: /VERIFACTU/SuministroInformacion.xsd.xml — RegistroFacturacionAltaType
 /// </summary>
-public sealed class BillingRecordToVeriFactuMapper
+public static class BillingRecordToVeriFactuMapper
 {
     /// <summary>
-    /// Mapea un BillingRecord a una solicitud AEAT.
-    /// 
-    /// Por ahora, genera XML básico. En producción, usaría librerías de serialización
-    /// tipadas según XSD oficial.
+    /// Mapea un BillingRecord a una solicitud de envío AEAT.
+    ///
+    /// Precondición: el registro debe tener ComputedHash calculado.
+    /// El XML se genera invocando IRegistroAltaXmlBuilder (Infrastructure).
     /// </summary>
     public static VeriFactuSubmissionRequest MapToSubmissionRequest(
         BillingRecord billingRecord,
-        string certificatePath)
+        IRegistroAltaXmlBuilder xmlBuilder,
+        BillingRecord? previousRecord = null,
+        string? fechaHoraHusoGenRegistro = null)
     {
-        if (billingRecord == null)
-            throw new ArgumentNullException(nameof(billingRecord));
+        ArgumentNullException.ThrowIfNull(billingRecord);
+        ArgumentNullException.ThrowIfNull(xmlBuilder);
 
         if (string.IsNullOrWhiteSpace(billingRecord.ComputedHash))
-            throw new InvalidOperationException("BillingRecord debe tener un hash calculado antes de enviar");
+            throw new InvalidOperationException(
+                "BillingRecord debe tener ComputedHash calculado antes de generar el XML de envío.");
 
-        // En esta fase MVP, generamos XML simple.
-        // En producción, usaríamos XSD tipado o generado de WSDL.
-        var xmlContent = GenerateSimpleXml(billingRecord);
+        // FechaHoraHusoGenRegistro: si no se proporciona, usar ahora con offset local
+        var fechaHora = fechaHoraHusoGenRegistro
+            ?? DateTimeOffset.Now.ToString("yyyy-MM-ddTHH:mm:sszzz", CultureInfo.InvariantCulture);
+
+        // Construir desglose. Para esta fase (factura ordinaria F1):
+        // Se infiere un único DetalleDesglose a partir de CuotaTotal e ImporteTotal.
+        // En fases posteriores, el desglose real vendrá del comando/dominio.
+        var baseImponible = billingRecord.TotalAmount - billingRecord.TotalTaxAmount;
+        var detalles = new List<DetalleDesgloseData>
+        {
+            new()
+            {
+                Impuesto             = "01",   // IVA — Ref: SuministroInformacion.xsd ImpuestoType
+                ClaveRegimen         = "01",   // Régimen general
+                CalificacionOperacion = "S1",  // Sujeta y no exenta sin ISP
+                TipoImpositivo       = baseImponible > 0
+                    ? Math.Round(billingRecord.TotalTaxAmount / baseImponible * 100, 2)
+                    : (decimal?)null,
+                BaseImponible        = baseImponible,
+                CuotaRepercutida     = billingRecord.TotalTaxAmount,
+            }
+        };
+
+        var data = new RegistroAltaData
+        {
+            IssuerNif     = billingRecord.IssuerNif,
+            IssuerName    = billingRecord.IssuerName,
+            InvoiceSeries = billingRecord.InvoiceSeries,
+            InvoiceNumber = billingRecord.InvoiceNumber,
+            IssueDate     = billingRecord.IssueDate,
+            TipoFactura   = "F1",  // Factura ordinaria — Ref: ClaveTipoFacturaType
+            Description   = billingRecord.Description,
+            CuotaTotal    = billingRecord.TotalTaxAmount,
+            ImporteTotal  = billingRecord.TotalAmount,
+            Detalles      = detalles,
+
+            ComputedHash       = billingRecord.ComputedHash,
+            PreviousRecordHash = billingRecord.PreviousRecordHash,
+            PreviousIssueDate  = previousRecord?.IssueDate,
+            PreviousIssuerNif  = previousRecord?.IssuerNif,
+            PreviousInvoiceSeries = previousRecord?.InvoiceSeries,
+            PreviousInvoiceNumber = previousRecord?.InvoiceNumber,
+
+            FechaHoraHusoGenRegistro = fechaHora,
+        };
+
+        var xmlContent = xmlBuilder.BuildRegFactuXml(data);
 
         return new VeriFactuSubmissionRequest
         {
-            TaxpayerNif = billingRecord.IssuerNif,
-            SignedXmlContent = xmlContent,  // En producción: firmado con certificado
-            PreviousRecordHash = billingRecord.PreviousRecordHash
+            TaxpayerNif       = billingRecord.IssuerNif,
+            SignedXmlContent  = xmlContent,
+            PreviousRecordHash = billingRecord.PreviousRecordHash,
         };
     }
-
-    /// <summary>
-    /// Genera XML básico para la solicitud.
-    /// 
-    /// IMPORTANTE: En producción, esto debe:
-    /// - Usar XSD oficiales de /VERIFACTU
-    /// - Incluir firma digital con certificado
-    /// - Respetar exactamente la estructura SOAP esperada
-    /// - Validar contra XSD antes de enviar
-    /// 
-    /// Por ahora es solo estructura esquemática para MVP.
-    /// </summary>
-    private static string GenerateSimpleXml(BillingRecord billingRecord)
-    {
-        var xml = $@"<?xml version=""1.0"" encoding=""UTF-8""?>
-<!-- NOTA: Este XML es ESQUEMÁTICO. En producción debe cumplir /VERIFACTU/SuministroInformacion.xsd.xml -->
-<RegistroFacturacionAlta>
-    <Contribuyente>
-        <NIF>{billingRecord.IssuerNif}</NIF>
-    </Contribuyente>
-    <Factura>
-        <Identificacion>
-            <Serie>{billingRecord.InvoiceSeries}</Serie>
-            <Numero>{billingRecord.InvoiceNumber}</Numero>
-            <FechaExpedicion>{billingRecord.IssueDate:yyyy-MM-dd}</FechaExpedicion>
-        </Identificacion>
-        <Detalles>
-            <ConceptoFactura>{billingRecord.Description}</ConceptoFactura>
-            <ImporteTotal>{billingRecord.TotalAmount:F2}</ImporteTotal>
-            <ImporteImpuesto>{billingRecord.TotalTaxAmount:F2}</ImporteImpuesto>
-        </Detalles>
-        <Huella>
-            <HuellaAnterior>{(billingRecord.PreviousRecordHash ?? "PRIMERA")}</HuellaAnterior>
-            <HuellaActual>{billingRecord.ComputedHash}</HuellaActual>
-        </Huella>
-    </Factura>
-</RegistroFacturacionAlta>";
-
-        return xml;
-    }
 }
+

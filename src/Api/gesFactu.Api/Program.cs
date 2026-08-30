@@ -2,6 +2,7 @@
 using Serilog;
 using gesFactu.Application;
 using gesFactu.Infrastructure;
+using gesFactu.Infrastructure.Integrations.VeriFactu;
 using gesFactu.Api.Middleware;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -41,6 +42,24 @@ builder.Services.AddCors(options =>
 });
 
 var app = builder.Build();
+
+// ?? Validación fail-fast: Development no puede usar Production endpoint ??????
+// Ref: /VERIFACTU/SistemaFacturacion.wsdl.xml — endpoints por entorno
+if (app.Environment.IsDevelopment())
+{
+    var veriFactuOptions = new VeriFactuOptions();
+    app.Configuration.GetSection(VeriFactuOptions.SectionName).Bind(veriFactuOptions);
+
+    if (veriFactuOptions.Environment == VeriFactuEntorno.Production)
+    {
+        throw new InvalidOperationException(
+            "CONFIGURACIÓN INVÁLIDA: El entorno ASP.NET Core es 'Development' pero " +
+            "VeriFactu:Environment está configurado como 'Production'. " +
+            "En Development solo se permite VeriFactu:Environment=Test. " +
+            "Endpoint TEST oficial: " + VeriFactuOptions.EndpointTest +
+            " | Ref: /VERIFACTU/SistemaFacturacion.wsdl.xml");
+    }
+}
 
 // Middleware
 app.UseMiddleware<GlobalExceptionMiddleware>();

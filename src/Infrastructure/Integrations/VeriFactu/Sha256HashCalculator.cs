@@ -1,118 +1,135 @@
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
-using System.Globalization;
 using gesFactu.Application.Common.Abstractions;
 
 namespace gesFactu.Infrastructure.VeriFactu;
 
 /// <summary>
-/// Implementación del cálculo de hash SHA256 para registros VERI*FACTU.
-/// 
-/// El hash es determinista y culture-independent.
-/// Sigue la especificación oficial AEAT para TipoHuella=01 (SHA256).
-/// 
+/// Implementación del cálculo de huella/hash conforme a la especificación oficial AEAT VERI*FACTU.
+///
 /// Ref: /VERIFACTU/Veri-Factu_especificaciones_huella_hash_registros.pdf
+/// Ref: /VERIFACTU/AnexosEjemplosFirmaRegFact/ejemploRegistro.xml  (vector de prueba)
+///
+/// Algoritmo:
+///   Campos del RegistroAlta (en orden) separados por el carácter '&':
+///     1. IDEmisorFactura
+///     2. NumSerieFactura
+///     3. FechaExpedicionFactura  (dd-MM-yyyy)
+///     4. TipoFactura
+///     5. CuotaTotal             (número decimal, separador punto, sin ceros innecesarios)
+///     6. FechaHoraHusoGenRegistro (dateTime tal como aparece en el XML)
+///     7. HuellaAnterior         (hex del registro anterior, o "S" si es el primero)
+///   Codificación: UTF-8
+///   Hash: SHA-256
+///   Salida: hexadecimal en MAYÚSCULAS (64 caracteres)
 /// </summary>
 public sealed class Sha256HashCalculator : IHashCalculator
 {
     /// <summary>
-    /// Calcula el hash SHA256 de una cadena de texto.
-    /// Usa UTF-8 sin BOM para consistencia.
+    /// Calcula SHA-256 de una cadena UTF-8. Resultado: hex mayúsculas.
     /// </summary>
     public string CalculateSha256(string data)
     {
+        ArgumentNullException.ThrowIfNull(data);
         var bytes = Encoding.UTF8.GetBytes(data);
         return CalculateSha256(bytes);
     }
 
     /// <summary>
-    /// Calcula el hash SHA256 de datos binarios.
+    /// Calcula SHA-256 de bytes. Resultado: hex mayúsculas.
     /// </summary>
     public string CalculateSha256(byte[] data)
     {
-        using (var sha256 = SHA256.Create())
-        {
-            var hashBytes = sha256.ComputeHash(data);
-
-            // Convertir a hexadecimal en mayúsculas (formato AEAT)
-            return BitConverter.ToString(hashBytes).Replace("-", "").ToUpperInvariant();
-        }
+        ArgumentNullException.ThrowIfNull(data);
+        var hash = SHA256.HashData(data);
+        return Convert.ToHexString(hash); // ya en mayúsculas en .NET 5+
     }
 
     /// <summary>
-    /// Calcula el hash de encadenamiento según la especificación VERI*FACTU.
-    /// 
-    /// El input se construye concatenando los campos en el orden exacto requerido,
-    /// con separadores específicos y formatos garantizados (sin cultura local).
-    /// 
-    /// Orden de campos (según especificación oficial):
-    /// 1. Hash anterior
-    /// 2. NIF emisor
-    /// 3. Serie factura
-    /// 4. Número factura
-    /// 5. Fecha expedición (dd-MM-yyyy)
-    /// 6. Tipo factura
-    /// 7. Importe total
-    /// 8. Cuota total
-    /// 9. Descripción
-    /// 10. Timestamp
-    /// 11. Id sistema
-    /// 
-    /// Separador entre campos: pipe (|)
-    /// Importes: siempre con punto decimal, máximo 2 decimales
+    /// Calcula la huella de encadenamiento de un RegistroAlta.
+    ///
+    /// Ref: /VERIFACTU/Veri-Factu_especificaciones_huella_hash_registros.pdf
+    /// Vector verificado: /VERIFACTU/AnexosEjemplosFirmaRegFact/ejemploRegistro.xml
     /// </summary>
     public string CalculateChainHash(BillingRecordHashInput input)
     {
-        // Validaciones
-        if (input == null)
-            throw new ArgumentNullException(nameof(input));
+        ArgumentNullException.ThrowIfNull(input);
 
-        if (string.IsNullOrEmpty(input.IssuerNif))
-            throw new ArgumentException("NIF del emisor es requerido", nameof(input));
+        if (string.IsNullOrWhiteSpace(input.IssuerNif))
+            throw new ArgumentException("IssuerNif es obligatorio para el cálculo de la huella.", nameof(input));
 
-        if (string.IsNullOrEmpty(input.InvoiceSeries))
-            throw new ArgumentException("Serie de factura es requerida", nameof(input));
+        if (string.IsNullOrWhiteSpace(input.InvoiceNumber))
+            throw new ArgumentException("InvoiceNumber es obligatorio para el cálculo de la huella.", nameof(input));
 
-        if (string.IsNullOrEmpty(input.InvoiceNumber))
-            throw new ArgumentException("Número de factura es requerido", nameof(input));
+        if (string.IsNullOrWhiteSpace(input.IssueDate))
+            throw new ArgumentException("IssueDate es obligatorio para el cálculo de la huella.", nameof(input));
 
-        if (string.IsNullOrEmpty(input.IssueDate))
-            throw new ArgumentException("Fecha de expedición es requerida", nameof(input));
+        if (string.IsNullOrWhiteSpace(input.RegisterTimestamp))
+            throw new ArgumentException("RegisterTimestamp es obligatorio para el cálculo de la huella.", nameof(input));
 
-        if (string.IsNullOrEmpty(input.RegisterTimestamp))
-            throw new ArgumentException("Timestamp del registro es requerido", nameof(input));
+        // NIF siempre en mayúsculas (normalización defensiva)
+        var nif = input.IssuerNif.ToUpperInvariant();
 
-        // Normalizar y formatear datos según especificación
-        var previousHash = input.PreviousHash ?? string.Empty;
-        var issuerNif = input.IssuerNif.ToUpperInvariant();
-        var invoiceSeries = input.InvoiceSeries.Trim();
-        var invoiceNumber = input.InvoiceNumber.Trim();
-        var issueDate = input.IssueDate.Trim();
-        var invoiceType = (input.InvoiceType ?? string.Empty).Trim();
-        var description = (input.Description ?? string.Empty).Trim();
-        var softwareId = (input.SoftwareId ?? string.Empty).Trim();
+        // NumSerieFactura = serie + número combinados tal como van en el XML
+        var numSerieFactura = string.IsNullOrWhiteSpace(input.InvoiceSeries)
+            ? input.InvoiceNumber
+            : input.InvoiceSeries + input.InvoiceNumber;
 
-        // Formatear importes: siempre con punto decimal, máximo 2 decimales, usando InvariantCulture
-        var totalAmountStr = input.TotalAmount.ToString("0.00", CultureInfo.InvariantCulture);
-        var totalTaxStr = input.TotalTaxAmount.ToString("0.00", CultureInfo.InvariantCulture);
+        // Fecha en formato dd-MM-yyyy (formato AEAT)
+        var fechaExpedicion = input.IssueDate; // ya debe venir formateada correctamente
 
-        // Construir el string de entrada para el hash
-        // Orden exacto según VERI*FACTU
-        var hashInput = string.Join("|",
-            previousHash,
-            issuerNif,
-            invoiceSeries,
-            invoiceNumber,
-            issueDate,
-            invoiceType,
-            totalAmountStr,
-            totalTaxStr,
-            description,
-            input.RegisterTimestamp,
-            softwareId
-        );
+        // TipoFactura ("F1" para ordinaria, "R3", etc.)
+        var tipoFactura = input.InvoiceType;
 
-        // Calcular y retornar hash
-        return CalculateSha256(hashInput);
+        // CuotaTotal: decimal con punto como separador, sin ceros innecesarios
+        // Conforme a ImporteSgn12.2Type: (\+|-)?\d{1,12}(\.\d{0,2})?
+        var cuotaTotal = FormatDecimalParaHash(input.TotalTaxAmount);
+
+        // FechaHoraHusoGenRegistro: dateTime tal como se escribe en el XML
+        // Ej: "2025-02-03T14:30:00+01:00"
+        var fechaHoraHuso = input.RegisterTimestamp;
+
+        // Huella anterior: hex del registro anterior, o "S" si es el primero
+        var huellaAnterior = string.IsNullOrWhiteSpace(input.PreviousHash)
+            ? "S"
+            : input.PreviousHash;
+
+        // Concatenar con '&' en el orden definido por la especificación
+        var cadena = string.Join("&",
+            nif,
+            numSerieFactura,
+            fechaExpedicion,
+            tipoFactura,
+            cuotaTotal,
+            fechaHoraHuso,
+            huellaAnterior);
+
+        return CalculateSha256(cadena);
+    }
+
+    /// <summary>
+    /// Formatea un decimal para incluirlo en la cadena de hash.
+    /// Usa separador de punto, elimina ceros de relleno innecesarios al final
+    /// pero mantiene al menos el entero. Ej: 41.4 ? "41.4", 100.00 ? "100", 21.00 ? "21".
+    ///
+    /// Nota: el ejemplo oficial muestra CuotaTotal="41.4" (no "41.40"),
+    /// lo que indica que AEAT usa el valor sin zeros trailing.
+    /// Ref: /VERIFACTU/AnexosEjemplosFirmaRegFact/ejemploRegistro.xml
+    /// </summary>
+    internal static string FormatDecimalParaHash(decimal value)
+    {
+        // G29 elimina ceros trailing; InvariantCulture garantiza punto como separador
+        // Pero limitamos a 2 decimales según la especificación del tipo ImporteSgn12.2Type
+        var con2decimales = Math.Round(value, 2, MidpointRounding.AwayFromZero);
+        var str = con2decimales.ToString("G29", CultureInfo.InvariantCulture);
+
+        // Eliminar ceros trailing después del punto decimal
+        if (str.Contains('.'))
+        {
+            str = str.TrimEnd('0').TrimEnd('.');
+        }
+
+        return str;
     }
 }

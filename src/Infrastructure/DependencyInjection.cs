@@ -1,13 +1,13 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Hosting;
 using gesFactu.Application.Common.Abstractions;
 using gesFactu.Infrastructure.Persistence;
 using gesFactu.Infrastructure.Persistence.Repositories;
 using gesFactu.Infrastructure.VeriFactu;
 using gesFactu.Infrastructure.Integrations.VeriFactu;
-using gesFactu.Infrastructure.Integrations.VeriFactu.Signature;
+using gesFactu.Infrastructure.Integrations.VeriFactu.Certificate;
 using gesFactu.Infrastructure.Integrations.VeriFactu.Validation;
 using gesFactu.Infrastructure.Integrations.VeriFactu.XmlGeneration;
 using gesFactu.Infrastructure.Integrations.QRCode;
@@ -53,15 +53,19 @@ public static class DependencyInjection
         // QR Code generator
         services.AddScoped<IQRCodeGenerator, QRCodeGenerator>();
 
-        // Cliente AEAT: configurable (stub en desarrollo, SOAP real en producción)
+        // Cliente AEAT: configurable (stub en desarrollo, SOAP real con ClientMode=SoapClient)
         services.AddVeriFactuClient(configuration);
 
-        // Servicios de firma y validación XML
-        services.AddScoped<IXmlSignatureService, XmlSignatureServiceStub>();
-        services.AddScoped<IXmlSchemaValidator, XmlSchemaValidatorStub>();
+        // Validación XSD real contra esquemas oficiales AEAT
+        // Ref: /VERIFACTU/SuministroLR.xsd.xml, SuministroInformacion.xsd.xml
+        services.AddScoped<IXmlSchemaValidator, XmlSchemaValidator>();
 
-        // Generador de XML conforme a AEAT
-        services.AddScoped<VeriFactuXmlGenerator>();
+        // Generador de XML conforme a XSD oficial AEAT (RegistroAlta)
+        // NOTA: IXmlSignatureService eliminado — VERI*FACTU (modalidad sistema verificable)
+        // NO requiere firma XAdES del XML. El campo ds:Signature es opcional (minOccurs=0).
+        // La autenticación con AEAT se realiza mediante mTLS (certificado en capa HTTPS).
+        // Ref: /VERIFACTU/SuministroInformacion.xsd.xml — ds:Signature minOccurs=0
+        services.AddScoped<IRegistroAltaXmlBuilder, RegistroAltaXmlBuilderAdapter>();
 
         // Servicio background para procesar outbox
         services.AddHostedService<OutboxProcessorService>();

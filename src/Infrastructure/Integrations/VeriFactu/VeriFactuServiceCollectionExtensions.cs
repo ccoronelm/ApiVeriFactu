@@ -1,9 +1,11 @@
 using System.Net.Security;
 using System.Security.Cryptography.X509Certificates;
 using gesFactu.Application.Common.Abstractions;
+using gesFactu.Infrastructure.Integrations.VeriFactu.Certificate;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace gesFactu.Infrastructure.Integrations.VeriFactu;
 
@@ -13,9 +15,9 @@ namespace gesFactu.Infrastructure.Integrations.VeriFactu;
 public static class VeriFactuServiceCollectionExtensions
 {
     /// <summary>
-    /// Registra la implementación configurada de IVeriFactuGateway.
-    /// 
-    /// Selecciona entre stub (desarrollo) o cliente SOAP real basado en configuración.
+    /// Registra la implementación configurada de IVeriFactuGateway y servicios relacionados.
+    ///
+    /// Selecciona entre stub (desarrollo) o cliente SOAP real basado en VeriFactu:ClientMode.
     /// </summary>
     public static IServiceCollection AddVeriFactuClient(
         this IServiceCollection services,
@@ -30,99 +32,60 @@ public static class VeriFactuServiceCollectionExtensions
 
         services.Configure<VeriFactuOptions>(veriFactuSection);
 
-        // Seleccionar implementación
+        // Registrar CertificateLoader siempre (usado en modo SOAP)
+        services.AddSingleton<CertificateLoader>();
+
         var clientMode = options.ClientMode?.ToLowerInvariant() ?? "stub";
 
         if (clientMode == "soapclient")
         {
-            AddSoapClient(services, configuration, options);
+            AddSoapClient(services, options);
         }
         else
         {
-            // Por defecto, usar stub (desarrollo/testing)
             services.AddScoped<IVeriFactuGateway, VeriFactuGatewayStub>();
         }
 
         return services;
     }
 
-    /// <summary>
-    /// Registra el cliente SOAP real con configuración de certificados y HttpClient.
-    /// </summary>
-    private static void AddSoapClient(
-        IServiceCollection services,
-        IConfiguration configuration,
-        VeriFactuOptions options)
+    private static void AddSoapClient(IServiceCollection services, VeriFactuOptions options)
     {
-        // Registrar HttpClientFactory para VeriFactuGatewaySoapClient
+        // Cargar el certificado una sola vez (singleton-safe: el certificado es inmutable)
+        services.AddSingleton<X509Certificate2?>(sp =>
+        {
+            var loader = sp.GetRequiredService<CertificateLoader>();
+            return loader.Load(options.Certificate);
+        });
+
+        // HttpClient con handler configurado con mTLS
         services.AddHttpClient<VeriFactuGatewaySoapClient>()
             .ConfigureHttpClient(client =>
             {
                 client.Timeout = TimeSpan.FromSeconds(options.TimeoutSeconds);
                 client.DefaultRequestHeaders.Add("User-Agent", "gesFactu/1.0");
             })
-            .ConfigurePrimaryHttpMessageHandler(() => CreateHttpHandler(options));
+            .ConfigurePrimaryHttpMessageHandler(sp =>
+            {
+                var cert = sp.GetService<X509Certificate2>();
+                return CreateHttpHandler(cert, options);
+            });
 
-        // Registrar VeriFactuGatewaySoapClient como implementación de IVeriFactuGateway
         services.AddScoped<IVeriFactuGateway>(provider =>
             provider.GetRequiredService<VeriFactuGatewaySoapClient>());
     }
 
-    /// <summary>
-    /// Crea el HttpMessageHandler con configuración de certificados y validación SSL.
-    /// </summary>
-    private static HttpClientHandler CreateHttpHandler(VeriFactuOptions options)
+    private static HttpClientHandler CreateHttpHandler(X509Certificate2? clientCert, VeriFactuOptions options)
     {
         var handler = new HttpClientHandler();
 
-        // Configurar certificado cliente si está disponible
-        if (!string.IsNullOrEmpty(options.CertificatePath))
-        {
-            try
-            {
-                var clientCert = new X509Certificate2(
-                    options.CertificatePath,
-                    options.CertificatePassword);
+        if (clientCert != null)
+            handler.ClientCertificates.Add(clientCert);
 
-                handler.ClientCertificates.Add(clientCert);
-            }
-            catch (Exception ex)
-            {
-                throw new InvalidOperationException(
-                    $"Failed to load client certificate from {options.CertificatePath}", ex);
-            }
-        }
-
-        // En desarrollo/staging, permitir certificados auto-firmados
-        if (options.UseStaging)
-        {
-            handler.ServerCertificateCustomValidationCallback = AllowStagingCertificates;
-        }
+        // En entorno Test, los certificados del servidor AEAT de pruebas
+        // están firmados por la misma CA que producción — no omitir validación del servidor.
+        // Si hubiera problemas de cadena en Test, se puede relajar aquí con documentación explícita.
 
         return handler;
-    }
-
-    /// <summary>
-    /// Validación de certificados permisiva para entorno de staging.
-    /// 
-    /// ADVERTENCIA: Solo usar en desarrollo/pruebas. En producción, validar correctamente.
-    /// </summary>
-    private static bool AllowStagingCertificates(
-        HttpRequestMessage request,
-        X509Certificate2? certificate,
-        X509Chain? chain,
-        SslPolicyErrors sslPolicyErrors)
-    {
-        if (sslPolicyErrors == SslPolicyErrors.None)
-            return true;
-
-        // En staging, permitir algunos errores comunes
-        if (sslPolicyErrors.HasFlag(SslPolicyErrors.RemoteCertificateNameMismatch))
-            return true;
-
-        if (sslPolicyErrors.HasFlag(SslPolicyErrors.RemoteCertificateChainErrors))
-            return true;
-
-        return false;
     }
 }
