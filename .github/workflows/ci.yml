@@ -42,41 +42,9 @@ jobs:
         run: |
           set -euo pipefail
 
-          forbidden_files="$(git ls-files | grep -Ei '\.(pfx|p12|pem|key)
-        with:
-          dotnet-version: "8.0.404"
-
-      - name: Restore dotnet tools
-        run: dotnet tool restore
-
-      - name: Restore application
-        run: dotnet restore gesFactuSolucion.sln
-
-      - name: Restore tests
-        run: dotnet restore src/Infrastructure.Tests/gesFactu.Infrastructure.Tests.csproj
-
-      - name: Restore AEAT E2E tests
-        run: dotnet restore src/AeatE2ETests/gesFactu.AeatE2ETests.csproj
-
-      - name: Build application
-        run: dotnet build gesFactuSolucion.sln --configuration Release --no-restore
-
-      - name: Validate EF migrations
-        run: >
-          dotnet ef database update
-          --project src/Infrastructure/gesFactu.Infrastructure.csproj
-          --startup-project src/Api/gesFactu.Api/gesFactu.Api.csproj
-          --connection "$GESFACTU_DESIGN_CONNECTION"
-
-      - name: Run infrastructure tests
-        run: dotnet test src/Infrastructure.Tests/gesFactu.Infrastructure.Tests.csproj --configuration Release --no-restore --verbosity normal
-
-      - name: Verify AEAT E2E test project
-        run: dotnet test src/AeatE2ETests/gesFactu.AeatE2ETests.csproj --configuration Release --no-restore --verbosity normal
- || true)"
-          if [ -n "$forbidden_files" ]; then
+          if git ls-files | grep -Eiq '\.(pfx|p12|pem|key)$'; then
             echo "Forbidden private certificate/key files are tracked:"
-            echo "$forbidden_files"
+            git ls-files | grep -Ei '\.(pfx|p12|pem|key)$'
             exit 1
           fi
 
