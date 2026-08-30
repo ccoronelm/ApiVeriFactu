@@ -60,9 +60,22 @@ public sealed class BillingRecordRepository : IBillingRecordRepository
             .FirstOrDefaultAsync(
                 r => r.IssuerNif == issuerNif
                      && r.FiscalInvoiceNumber == fiscalInvoiceNumber
-                     && r.IssueDate == issueDate,
+                     && r.IssueDate == issueDate
+                     && r.SubsanatesBillingRecordId == null,
                 cancellationToken);
     }
+
+    public Task<BillingRecord?> GetPendingSubsanationForSourceAsync(
+        int sourceBillingRecordId,
+        CancellationToken cancellationToken = default)
+        => _dbContext.BillingRecords
+            .Where(r =>
+                r.SubsanatesBillingRecordId == sourceBillingRecordId &&
+                (r.Status == "Pendiente" ||
+                 r.Status == "PendienteEnvio" ||
+                 r.Status == "Enviado"))
+            .OrderByDescending(r => r.Id)
+            .FirstOrDefaultAsync(cancellationToken);
 
     public async Task<IEnumerable<BillingRecord>> ListByIssuerAsync(
         string issuerNif,
