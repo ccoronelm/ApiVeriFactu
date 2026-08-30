@@ -8,7 +8,7 @@ using gesFactu.Application.RegistrosFacturacion.Queries.ObtenerRegistro;
 namespace gesFactu.Api.Controllers.v1;
 
 /// <summary>
-/// API para operaciones con registros de facturaci髇.
+/// API para operaciones con registros de facturaci贸n.
 /// </summary>
 [ApiController]
 [Route("api/v1/[controller]")]
@@ -25,10 +25,10 @@ public class BillingRecordsController : ControllerBase
     }
 
     /// <summary>
-    /// Crea un nuevo registro de facturaci髇.
+    /// Crea un nuevo registro de facturaci贸n.
     /// </summary>
     /// <param name="request">Datos de la factura a registrar</param>
-    /// <param name="cancellationToken">Token de cancelaci髇</param>
+    /// <param name="cancellationToken">Token de cancelaci贸n</param>
     /// <returns>Registro creado</returns>
     [HttpPost]
     [ProducesResponseType(StatusCodes.Status201Created)]
@@ -45,13 +45,13 @@ public class BillingRecordsController : ControllerBase
                 Type = "https://tools.ietf.org/html/rfc9110#section-15.5.1",
                 Title = "Validation Failed",
                 Status = StatusCodes.Status400BadRequest,
-                Detail = "El registro de facturaci髇 no cumple con los requisitos",
+                Detail = "El registro de facturaci贸n no cumple con los requisitos",
                 Instance = HttpContext.Request.Path
             });
         }
 
         _logger.LogInformation(
-            "Recibida solicitud para crear registro de facturaci髇: {Series}/{Number}",
+            "Recibida solicitud para crear registro de facturaci贸n: {Series}/{Number}",
             request.InvoiceSeries,
             request.InvoiceNumber);
 
@@ -63,8 +63,7 @@ public class BillingRecordsController : ControllerBase
             request.IssuerName,
             request.Description,
             request.TotalAmount,
-            request.TotalTaxAmount,
-            request.PreviousRecordHash);
+            request.TotalTaxAmount);
 
         var result = await _mediator.Send(command, cancellationToken);
 
@@ -97,6 +96,16 @@ public class BillingRecordsController : ControllerBase
                     Instance = HttpContext.Request.Path
                 }),
 
+            Result<CreateBillingRecordResponse>.IdempotencyConflictError idempotencyError =>
+                Conflict(new ProblemDetails
+                {
+                    Type = "https://tools.ietf.org/html/rfc9110#section-15.5.10",
+                    Title = "Duplicate Fiscal Record",
+                    Status = StatusCodes.Status409Conflict,
+                    Detail = idempotencyError.Message,
+                    Instance = HttpContext.Request.Path
+                }),
+
             Result<CreateBillingRecordResponse>.UnexpectedError unexpectedError =>
                 StatusCode(StatusCodes.Status500InternalServerError, new ProblemDetails
                 {
@@ -119,7 +128,7 @@ public class BillingRecordsController : ControllerBase
     }
 
     /// <summary>
-    /// Obtiene un registro de facturaci髇 por ID.
+    /// Obtiene un registro de facturaci贸n por ID.
     /// </summary>
     [HttpGet("{id}")]
     [ProducesResponseType(StatusCodes.Status200OK)]
@@ -127,7 +136,7 @@ public class BillingRecordsController : ControllerBase
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> GetBillingRecord(int id, CancellationToken cancellationToken)
     {
-        _logger.LogInformation("Obteniendo registro de facturaci髇: {Id}", id);
+        _logger.LogInformation("Obteniendo registro de facturaci贸n: {Id}", id);
 
         var query = new GetBillingRecordQuery(id);
         var result = await _mediator.Send(query, cancellationToken);
@@ -162,9 +171,9 @@ public class BillingRecordsController : ControllerBase
     }
 
     /// <summary>
-    /// Env韆 un registro de facturaci髇 a AEAT.
+    /// Env铆a un registro de facturaci贸n a AEAT.
     /// 
-    /// Precondici髇: El registro debe existir y tener un hash calculado.
+    /// Precondici贸n: El registro debe existir y tener un hash calculado.
     /// </summary>
     [HttpPost("{id}/submit")]
     [ProducesResponseType(StatusCodes.Status200OK)]
@@ -174,7 +183,7 @@ public class BillingRecordsController : ControllerBase
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> SubmitToAEAT(int id, CancellationToken cancellationToken)
     {
-        _logger.LogInformation("Iniciando env韔 a AEAT del registro: {Id}", id);
+        _logger.LogInformation("Iniciando env铆o a AEAT del registro: {Id}", id);
 
         var command = new EnviarRegistroAEATCommand(id);
         var result = await _mediator.Send(command, cancellationToken);
@@ -240,7 +249,7 @@ public class BillingRecordsController : ControllerBase
 }
 
 /// <summary>
-/// Contrato de solicitud para crear un registro de facturaci髇.
+/// Contrato de solicitud para crear un registro de facturaci贸n.
 /// </summary>
 public sealed record CreateBillingRecordRequest
 {
@@ -255,22 +264,22 @@ public sealed record CreateBillingRecordRequest
     public required string InvoiceSeries { get; init; }
 
     /// <summary>
-    /// N鷐ero de la factura dentro de la serie
+    /// N煤mero de la factura dentro de la serie
     /// </summary>
     public required string InvoiceNumber { get; init; }
 
     /// <summary>
-    /// Fecha de expedici髇 (formato: dd-MM-yyyy)
+    /// Fecha de expedici贸n (formato: dd-MM-yyyy)
     /// </summary>
     public required string IssueDate { get; init; }
 
     /// <summary>
-    /// Nombre o raz髇 social del emisor
+    /// Nombre o raz贸n social del emisor
     /// </summary>
     public required string IssuerName { get; init; }
 
     /// <summary>
-    /// Descripci髇 de la operaci髇/concepto
+    /// Descripci贸n de la operaci贸n/concepto
     /// </summary>
     public required string Description { get; init; }
 
@@ -283,9 +292,4 @@ public sealed record CreateBillingRecordRequest
     /// Cuota total de impuesto
     /// </summary>
     public required decimal TotalTaxAmount { get; init; }
-
-    /// <summary>
-    /// Hash del registro anterior (para encadenamiento)
-    /// </summary>
-    public string? PreviousRecordHash { get; init; }
 }
