@@ -14,7 +14,7 @@ namespace gesFactu.Infrastructure.Tests.Outbox;
 /// - Marcar como procesado
 /// - Registrar intento fallido
 /// - Consultar por CorrelationId (idempotencia)
-/// - Límite de intentos máximos
+/// - LÃ­mite de intentos mÃ¡ximos
 /// </summary>
 public class OutboxStoreTests
 {
@@ -204,13 +204,12 @@ public class OutboxStoreTests
     }
 
     [Fact]
-    public async Task GetPendingMessagesAsync_RespectMaxAttemptsLimit()
+    public async Task GetPendingMessagesAsync_ReturnsAllDueUnlockedMessages()
     {
-        // Arrange
         using var context = CreateDbContext();
         var store = new OutboxStore(context);
 
-        var messageWithinLimit = new OutboxMessage
+        var first = new OutboxMessage
         {
             CorrelationId = Guid.NewGuid(),
             AggregateId = 1,
@@ -219,31 +218,31 @@ public class OutboxStoreTests
             Payload = "{\"test\": \"data1\"}",
             CreatedAt = DateTime.UtcNow,
             IsProcessed = false,
-            ProcessingAttempts = 4 // Less than maxAttempts (5)
+            ProcessingAttempts = 4
         };
 
-        var messageExceedsLimit = new OutboxMessage
+        var second = new OutboxMessage
         {
             CorrelationId = Guid.NewGuid(),
             AggregateId = 2,
             AggregateType = "BillingRecord",
             EventType = "BillingRecordSubmittedToAEAT",
             Payload = "{\"test\": \"data2\"}",
-            CreatedAt = DateTime.UtcNow,
+            CreatedAt = DateTime.UtcNow.AddMilliseconds(1),
             IsProcessed = false,
-            ProcessingAttempts = 5 // Equal to maxAttempts (5)
+            ProcessingAttempts = 5
         };
 
-        context.OutboxMessages.AddRange(messageWithinLimit, messageExceedsLimit);
+        context.OutboxMessages.AddRange(first, second);
         await context.SaveChangesAsync();
 
-        // Act
-        var pending = await store.GetPendingMessagesAsync(10, CancellationToken.None);
+        var pending = await store.GetPendingMessagesAsync(
+            10,
+            CancellationToken.None);
 
-        // Assert
         Assert.Equal(2, pending.Count);
-        Assert.Contains(messageWithinLimit, pending);
-        Assert.Contains(messageExceedsLimit, pending);  // Store ahora retorna TODOS los no-procesados, sin filtrar por intentos
+        Assert.Contains(pending, x => x.Id == first.Id);
+        Assert.Contains(pending, x => x.Id == second.Id);
     }
 
     [Fact]
@@ -325,7 +324,7 @@ public class OutboxStoreTests
 
         Assert.NotNull(updated);
         Assert.Equal(3, updated.ProcessingAttempts);
-        Assert.Equal("Error 3", updated.LastProcessingError); // Último error registrado
+        Assert.Equal("Error 3", updated.LastProcessingError); // Ãšltimo error registrado
         Assert.False(updated.IsProcessed);
     }
 }
