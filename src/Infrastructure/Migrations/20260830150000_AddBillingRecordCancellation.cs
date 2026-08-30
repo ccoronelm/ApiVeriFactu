@@ -40,7 +40,7 @@ public partial class AddBillingRecordCancellation : Migration
             table: "BillingRecords",
             columns: new[] { "IssuerNif", "FiscalInvoiceNumber", "IssueDate" },
             unique: true,
-            filter: ""RecordType" = 'Alta' AND "SubsanatesBillingRecordId" IS NULL");
+            filter: "\"RecordType\" = 'Alta' AND \"SubsanatesBillingRecordId\" IS NULL");
     }
 
     protected override void Down(MigrationBuilder migrationBuilder)
@@ -66,6 +66,6 @@ public partial class AddBillingRecordCancellation : Migration
             table: "BillingRecords",
             columns: new[] { "IssuerNif", "FiscalInvoiceNumber", "IssueDate" },
             unique: true,
-            filter: ""SubsanatesBillingRecordId" IS NULL");
+            filter: "\"SubsanatesBillingRecordId\" IS NULL");
     }
 }
