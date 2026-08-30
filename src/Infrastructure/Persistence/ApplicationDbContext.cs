@@ -99,16 +99,45 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
 
         var auditEntries = CaptureAuditEntries(now);
 
-        var affected = await base.SaveChangesAsync(cancellationToken);
+        IDbContextTransaction? localTransaction = null;
 
-        if (auditEntries.Count == 0)
+        if (auditEntries.Count > 0 &&
+            Database.IsRelational() &&
+            Database.CurrentTransaction is null)
+        {
+            localTransaction = await Database.BeginTransactionAsync(
+                cancellationToken);
+        }
+
+        try
+        {
+            var affected = await base.SaveChangesAsync(cancellationToken);
+
+            if (auditEntries.Count > 0)
+            {
+                foreach (var pending in auditEntries)
+                    AuditLogs.Add(pending.ToAuditLog());
+
+                affected += await base.SaveChangesAsync(cancellationToken);
+            }
+
+            if (localTransaction is not null)
+                await localTransaction.CommitAsync(cancellationToken);
+
             return affected;
+        }
+        catch
+        {
+            if (localTransaction is not null)
+                await localTransaction.RollbackAsync(CancellationToken.None);
 
-        foreach (var pending in auditEntries)
-            AuditLogs.Add(pending.ToAuditLog());
-
-        affected += await base.SaveChangesAsync(cancellationToken);
-        return affected;
+            throw;
+        }
+        finally
+        {
+            if (localTransaction is not null)
+                await localTransaction.DisposeAsync();
+        }
     }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
