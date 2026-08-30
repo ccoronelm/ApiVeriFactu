@@ -130,20 +130,13 @@ public sealed class VeriFactuQueryXmlCodecTests
     [Fact]
     public void ParseResponse_IndicadorS_SinClavePaginacion_FallaCerrado()
     {
-        var xml = ResponseWithPagination()
-            .Replace(
-                """
-                <sfLRRC:ClavePaginacion>
-                  <sf:IDEmisorFactura>89890001K</sf:IDEmisorFactura>
-                  <sf:NumSerieFactura>A/0001</sf:NumSerieFactura>
-                  <sf:FechaExpedicionFactura>30-08-2026</sf:FechaExpedicionFactura>
-                </sfLRRC:ClavePaginacion>
-                """,
-                string.Empty,
-                StringComparison.Ordinal);
+        var root = XElement.Parse(ResponseWithPagination());
+        root.Element(
+            VeriFactuQueryXmlCodec.NsResponse + "ClavePaginacion")!
+            .Remove();
 
         var ex = Assert.Throws<VeriFactuCommunicationException>(
-            () => VeriFactuQueryXmlCodec.ParseResponse(XElement.Parse(xml)));
+            () => VeriFactuQueryXmlCodec.ParseResponse(root));
 
         Assert.Contains("ClavePaginacion", ex.Message);
         Assert.False(ex.IsTransient);
@@ -162,8 +155,8 @@ public sealed class VeriFactuQueryXmlCodecTests
             </sf:ObligadoEmision>
           </sfLRRC:Cabecera>
           <sfLRRC:PeriodoImputacion>
-            <sf:Ejercicio>2026</sf:Ejercicio>
-            <sf:Periodo>08</sf:Periodo>
+            <sfLRRC:Ejercicio>2026</sfLRRC:Ejercicio>
+            <sfLRRC:Periodo>08</sfLRRC:Periodo>
           </sfLRRC:PeriodoImputacion>
           <sfLRRC:IndicadorPaginacion>S</sfLRRC:IndicadorPaginacion>
           <sfLRRC:ResultadoConsulta>ConDatos</sfLRRC:ResultadoConsulta>
