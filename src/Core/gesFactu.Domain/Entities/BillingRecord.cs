@@ -9,7 +9,16 @@ namespace gesFactu.Domain.Entities;
 /// </summary>
 public class BillingRecord : BaseDomainModel
 {
+    public const string AltaRecordType = "Alta";
+    public const string CancellationRecordType = "Anulacion";
+
     public required InvoiceIdentifier InvoiceIdentifier { get; set; }
+
+    /// <summary>
+    /// Tipo técnico del registro de facturación en la cadena del SIF:
+    /// Alta o Anulacion.
+    /// </summary>
+    public string RecordType { get; set; } = AltaRecordType;
 
     public string IssuerNif { get; set; } = string.Empty;
     public string InvoiceSeries { get; set; } = string.Empty;
@@ -46,6 +55,13 @@ public class BillingRecord : BaseDomainModel
     /// cuyos datos se están subsanando. Null para altas iniciales.
     /// </summary>
     public int? SubsanatesBillingRecordId { get; set; }
+
+    /// <summary>
+    /// Si este RF es RegistroAnulacion, identifica el registro local cuya
+    /// identidad fiscal se anula. El registro de anulación participa en la
+    /// misma cadena de huellas que las altas.
+    /// </summary>
+    public int? CancelsBillingRecordId { get; set; }
 
     /// <summary>
     /// Identificador interno del RF inmediatamente anterior de la cadena.
@@ -164,6 +180,7 @@ public class BillingRecord : BaseDomainModel
             TotalAmount = totalAmount.Amount,
             TotalTaxAmount = totalTaxAmount.Amount,
             RegisterTimestamp = timestamp,
+            RecordType = AltaRecordType,
             PreviousBillingRecordId = previousBillingRecordId,
             PreviousRecordHash = previousRecordHash,
             Status = "Pendiente",
