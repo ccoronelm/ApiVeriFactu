@@ -1,40 +1,32 @@
 namespace gesFactu.Application.Common.Abstractions;
 
 /// <summary>
-/// Puerto para generación de códigos QR conforme a VERI*FACTU.
-/// 
-/// Ref: /VERIFACTU/DetalleEspecificacTecnCodigoQRfactura.pdf
+/// Puerto para generaciÃ³n del QR tributario oficial VERI*FACTU.
+/// El entorno TEST/PROD se obtiene de la configuraciÃ³n segura del servidor.
 /// </summary>
 public interface IQRCodeGenerator
 {
     /// <summary>
-    /// Genera un código QR conforme a VERI*FACTU.
-    /// 
-    /// El QR debe contener:
-    /// - URL de acceso al registro en AEAT
-    /// - SubmissionId
-    /// - Hash del registro
-    /// - Timestamp
-    /// 
-    /// Según especificación, el formato es:
-    /// https://www.aeat.es/verifactu?ID={SubmissionId}&HASH={Hash}&FECHA={Fecha}
+    /// Genera un PNG QR real con nivel de correcciÃ³n M.
     /// </summary>
-    /// <param name="submissionId">Identificador asignado por AEAT.</param>
-    /// <param name="recordHash">Hash/huella del registro.</param>
-    /// <param name="issueDate">Fecha de emisión de la factura.</param>
-    /// <returns>Array de bytes con la imagen PNG del QR.</returns>
-    Task<byte[]> GenerateAsync(
-        string submissionId,
-        string recordHash,
-        DateOnly issueDate,
+    Task<byte[]> GeneratePngAsync(
+        VeriFactuQrData data,
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Genera solo el contenido del QR (la URL) sin codificarlo a imagen.
-    /// Útil para pruebas y para cuando se necesita solo el texto.
+    /// Genera la URL oficial que debe codificarse dentro del QR.
     /// </summary>
-    string GenerateQRContent(
-        string submissionId,
-        string recordHash,
-        DateOnly issueDate);
+    string BuildVerificationUrl(VeriFactuQrData data);
+}
+
+/// <summary>
+/// Datos fiscales que forman la URL oficial del QR.
+/// </summary>
+public sealed record VeriFactuQrData
+{
+    public required string IssuerNif { get; init; }
+    public required string InvoiceSeries { get; init; }
+    public required string InvoiceNumber { get; init; }
+    public required DateOnly IssueDate { get; init; }
+    public required decimal TotalAmount { get; init; }
 }

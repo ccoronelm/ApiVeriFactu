@@ -1,51 +1,108 @@
+using System.Globalization;
 using gesFactu.Application.Common.Abstractions;
+using gesFactu.Infrastructure.Integrations.VeriFactu;
+using Microsoft.Extensions.Options;
+using QRCoder;
 
 namespace gesFactu.Infrastructure.Integrations.QRCode;
 
 /// <summary>
-/// Generador de códigos QR conforme a VERI*FACTU.
-/// 
-/// Esta implementación genera el contenido del QR (la URL).
-/// El cliente puede usar cualquier librería QR (QRCoder, Zxing, etc) para renderizar como imagen.
-/// 
-/// Alternativa: Para integración completa con imagen PNG, usar una librería como QRCoder en la capa de presentación.
+/// Generador oficial de QR tributario VERI*FACTU.
 /// </summary>
-public class QRCodeGenerator : IQRCodeGenerator
+public sealed class QRCodeGenerator : IQRCodeGenerator
 {
-    /// <summary>
-    /// URL base de AEAT para verificación de registros VERI*FACTU.
-    /// </summary>
-    private const string AeatVerifyBaseUrl = "https://www.aeat.es/verifactu";
+    private const string TestBaseUrl =
+        "https://prewww2.aeat.es/wlpl/TIKE-CONT/ValidarQR";
 
-    public async Task<byte[]> GenerateAsync(
-        string submissionId,
-        string recordHash,
-        DateOnly issueDate,
-        CancellationToken cancellationToken = default)
+    private const string ProductionBaseUrl =
+        "https://www2.agenciatributaria.gob.es/wlpl/TIKE-CONT/ValidarQR";
+
+    private readonly VeriFactuOptions _options;
+
+    public QRCodeGenerator(IOptions<VeriFactuOptions> options)
     {
-        // Esta implementación genera solo el contenido del QR (la URL).
-        // Para generar una imagen PNG, el cliente puede usar QRCoder o similar.
-        // Para simplicidad en este MVP, retornamos la URL codificada en UTF8.
-
-        var qrContent = GenerateQRContent(submissionId, recordHash, issueDate);
-        return await Task.FromResult(System.Text.Encoding.UTF8.GetBytes(qrContent));
+        _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
     }
 
-    public string GenerateQRContent(
-        string submissionId,
-        string recordHash,
-        DateOnly issueDate)
+    public Task<byte[]> GeneratePngAsync(
+        VeriFactuQrData data,
+        CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(submissionId))
-            throw new ArgumentException("SubmissionId no puede estar vacío", nameof(submissionId));
+        cancellationToken.ThrowIfCancellationRequested();
 
-        if (string.IsNullOrWhiteSpace(recordHash))
-            throw new ArgumentException("RecordHash no puede estar vacío", nameof(recordHash));
+        var content = BuildVerificationUrl(data);
 
-        // Formato conforme a VERI*FACTU
-        // https://www.aeat.es/verifactu?ID={SubmissionId}&HASH={Hash}&FECHA={Fecha}
-        var qrUrl = $"{AeatVerifyBaseUrl}?ID={Uri.EscapeDataString(submissionId)}&HASH={Uri.EscapeDataString(recordHash)}&FECHA={issueDate:yyyyMMdd}";
+        using var generator = new QRCoder.QRCodeGenerator();
+        using var qrData = generator.CreateQrCode(
+            content,
+            QRCoder.QRCodeGenerator.ECCLevel.M);
 
-        return qrUrl;
+        var png = new PngByteQRCode(qrData);
+        var bytes = png.GetGraphic(pixelsPerModule: 20);
+
+        return Task.FromResult(bytes);
+    }
+
+    public string BuildVerificationUrl(VeriFactuQrData data)
+    {
+        ArgumentNullException.ThrowIfNull(data);
+
+        var nif = data.IssuerNif?.Trim().ToUpperInvariant();
+        var series = data.InvoiceSeries?.Trim() ?? string.Empty;
+        var number = data.InvoiceNumber?.Trim() ?? string.Empty;
+        var fullInvoiceNumber = series + number;
+
+        if (string.IsNullOrWhiteSpace(nif) || nif.Length != 9)
+            throw new ArgumentException(
+                "IssuerNif debe tener 9 caracteres.",
+                nameof(data));
+
+        if (string.IsNullOrWhiteSpace(fullInvoiceNumber) ||
+            fullInvoiceNumber.Length > 60)
+        {
+            throw new ArgumentException(
+                "NÃºmero de serie + nÃºmero de factura debe tener entre 1 y 60 caracteres.",
+                nameof(data));
+        }
+
+        if (fullInvoiceNumber.Any(ch => ch < 32 || ch > 126))
+            throw new ArgumentException(
+                "NÃºmero de factura solo puede contener caracteres ASCII imprimibles.",
+                nameof(data));
+
+        var integerDigits = decimal.Truncate(decimal.Abs(data.TotalAmount))
+            .ToString("0", CultureInfo.InvariantCulture)
+            .Length;
+
+        if (integerDigits > 12)
+            throw new ArgumentException(
+                "El importe total no puede superar 12 dÃ­gitos en la parte entera.",
+                nameof(data));
+
+        if (decimal.Round(data.TotalAmount, 2) != data.TotalAmount)
+            throw new ArgumentException(
+                "El importe total admite como mÃ¡ximo 2 decimales.",
+                nameof(data));
+
+        var baseUrl = _options.Environment switch
+        {
+            VeriFactuEntorno.Test => TestBaseUrl,
+            VeriFactuEntorno.Production when _options.AllowProduction =>
+                ProductionBaseUrl,
+            VeriFactuEntorno.Production =>
+                throw new InvalidOperationException(
+                    "ProducciÃ³n estÃ¡ bloqueada: VeriFactu:AllowProduction debe ser true."),
+            _ => throw new InvalidOperationException(
+                $"Entorno VERI*FACTU no soportado: {_options.Environment}.")
+        };
+
+        var amount = data.TotalAmount.ToString(
+            "0.##",
+            CultureInfo.InvariantCulture);
+
+        return $"{baseUrl}?nif={Uri.EscapeDataString(nif)}" +
+               $"&numserie={Uri.EscapeDataString(fullInvoiceNumber)}" +
+               $"&fecha={data.IssueDate:dd-MM-yyyy}" +
+               $"&importe={Uri.EscapeDataString(amount)}";
     }
 }
