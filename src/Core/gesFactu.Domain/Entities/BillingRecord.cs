@@ -42,6 +42,12 @@ public class BillingRecord : BaseDomainModel
     public string RegisterTimestamp { get; set; } = string.Empty;
 
     /// <summary>
+    /// Si este RegistroAlta es una subsanación, identifica el registro local
+    /// cuyos datos se están subsanando. Null para altas iniciales.
+    /// </summary>
+    public int? SubsanatesBillingRecordId { get; set; }
+
+    /// <summary>
     /// Identificador interno del RF inmediatamente anterior de la cadena.
     /// Null solo para el primer RF del obligado tributario en este SIF.
     /// </summary>
