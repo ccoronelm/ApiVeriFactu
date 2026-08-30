@@ -162,10 +162,10 @@ public static class VeriFactuQueryXmlCodec
             ?? throw ProtocolError("Respuesta de consulta sin PeriodoImputacion.");
 
         var year = RequiredValue(
-            period.Element(NsSf + "Ejercicio"),
+            period.Element(NsResponse + "Ejercicio"),
             "PeriodoImputacion/Ejercicio");
         var month = RequiredValue(
-            period.Element(NsSf + "Periodo"),
+            period.Element(NsResponse + "Periodo"),
             "PeriodoImputacion/Periodo");
         var pagination = RequiredValue(
             response.Element(NsResponse + "IndicadorPaginacion"),
