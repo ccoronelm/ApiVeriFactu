@@ -12,7 +12,7 @@ public sealed class BillingRecordConfiguration : IEntityTypeConfiguration<Billin
         builder.Property(e => e.Id).ValueGeneratedOnAdd();
 
         builder.Property(e => e.CreateDate)
-            .HasDefaultValueSql("GETUTCDATE()")
+            .HasDefaultValueSql("CURRENT_TIMESTAMP")
             .ValueGeneratedOnAdd();
 
         builder.Property(e => e.CreatedBy).HasMaxLength(256);
