@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using gesFactu.Api.Configuration;
 using Microsoft.Extensions.Options;
+using Microsoft.AspNetCore.Mvc;
 
 namespace gesFactu.Api.Middleware;
 
