@@ -186,7 +186,7 @@ public sealed class OutboxProcessorService : BackgroundService
                 notes:
                     "Resultado externo incierto. El siguiente reintento puede recibir un duplicado AEAT.",
                 durationMilliseconds: 0,
-                cancellationToken);
+                cancellationToken: cancellationToken);
 
             lastAttempt = await attemptStore.GetLastAttemptAsync(
                 message.AggregateId,
@@ -347,8 +347,8 @@ public sealed class OutboxProcessorService : BackgroundService
                 notes: ex.IsTransient
                     ? "Error técnico reintentable."
                     : "Error técnico no reintentable.",
-                duration,
-                cancellationToken);
+                durationMilliseconds: duration,
+                cancellationToken: cancellationToken);
 
             if (ex.IsTransient)
             {
@@ -357,10 +357,10 @@ public sealed class OutboxProcessorService : BackgroundService
                     attemptNumber,
                     ex.Message,
                     lastErrorResponse: null,
-                    outboxStore,
-                    deadLetterStore,
-                    billingRepository,
-                    cancellationToken);
+                    outboxStore: outboxStore,
+                    deadLetterStore: deadLetterStore,
+                    billingRepository: billingRepository,
+                    cancellationToken: cancellationToken);
 
                 _options.CircuitBreaker.RecordFailure();
             }
@@ -398,18 +398,18 @@ public sealed class OutboxProcessorService : BackgroundService
                 ex.Message,
                 responsePayload: null,
                 notes: ex.GetType().Name,
-                duration,
-                cancellationToken);
+                durationMilliseconds: duration,
+                cancellationToken: cancellationToken);
 
             await ScheduleOrDeadLetterAsync(
                 message,
                 attemptNumber,
                 $"Error inesperado: {ex.Message}",
                 lastErrorResponse: null,
-                outboxStore,
-                deadLetterStore,
-                billingRepository,
-                cancellationToken);
+                outboxStore: outboxStore,
+                deadLetterStore: deadLetterStore,
+                billingRepository: billingRepository,
+                cancellationToken: cancellationToken);
 
             _options.CircuitBreaker.RecordFailure();
         }
