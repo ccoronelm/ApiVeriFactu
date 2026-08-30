@@ -310,8 +310,8 @@ namespace gesFactu.Infrastructure.Migrations
                         .HasColumnType("nvarchar(50)");
 
                     b.Property<string>("ResponseDescription")
-                        .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)");
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
 
                     b.Property<string>("ResponsePayload")
                         .HasColumnType("nvarchar(max)");
