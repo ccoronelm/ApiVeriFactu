@@ -105,6 +105,95 @@ public sealed class OutboxProcessorIntegrationTests
         }
     }
 
+    [SqlServerFact]
+    public async Task ConfirmedDuplicate_IsReconciledAsSuccessAndClosesOutbox()
+    {
+        var connectionString = await CreateDatabaseAsync();
+
+        try
+        {
+            var recordId = await SeedQueuedRecordAsync(connectionString);
+
+            var services = new ServiceCollection();
+
+            services.AddDbContext<ApplicationDbContext>(
+                options => options.UseSqlServer(connectionString));
+
+            services.AddScoped<IOutboxStore, OutboxStore>();
+            services.AddScoped<IDeadLetterStore, DeadLetterStore>();
+            services.AddScoped<ISubmissionAttemptStore, SubmissionAttemptStore>();
+            services.AddScoped<IBillingRecordRepository, BillingRecordRepository>();
+            services.AddScoped<IVeriFactuGateway, DuplicateGateway>();
+
+            await using var provider = services.BuildServiceProvider();
+
+            var worker = new OutboxProcessorService(
+                provider,
+                NullLogger<OutboxProcessorService>.Instance,
+                new OutboxProcessorOptions
+                {
+                    BatchSize = 1,
+                    LeaseDurationSeconds = 30,
+                    IdleDelayMilliseconds = 50,
+                    ErrorDelayMilliseconds = 50,
+                    RetryPolicy = new RetryPolicy
+                    {
+                        MaxAttempts = 3,
+                        BaseDelayMilliseconds = 20,
+                        MaxDelayMilliseconds = 100,
+                        MaxJitterMilliseconds = 0
+                    }
+                });
+
+            await worker.StartAsync(CancellationToken.None);
+
+            try
+            {
+                await WaitUntilProcessedAsync(
+                    connectionString,
+                    recordId,
+                    TimeSpan.FromSeconds(10));
+            }
+            finally
+            {
+                using var stopCts = new CancellationTokenSource(
+                    TimeSpan.FromSeconds(5));
+
+                await worker.StopAsync(stopCts.Token);
+                worker.Dispose();
+            }
+
+            await using var verify = CreateContext(connectionString);
+
+            var record = await verify.BillingRecords
+                .SingleAsync(x => x.Id == recordId);
+
+            var outbox = await verify.OutboxMessages
+                .SingleAsync(x => x.AggregateId == recordId);
+
+            var attempt = await verify.SubmissionAttempts
+                .SingleAsync(x => x.BillingRecordId == recordId);
+
+            Assert.True(outbox.IsProcessed);
+            Assert.Null(record.AeatSubmissionId);
+            Assert.Equal("AceptadoPorDuplicadoAEAT", record.Status);
+
+            Assert.Equal(SubmissionAttemptStatus.Success, attempt.Status);
+            Assert.Equal("3000", attempt.ResponseCode);
+            Assert.Null(attempt.AeatSubmissionId);
+            Assert.Contains(
+                "IdPeticionRegistroDuplicado=PETICION-RECUPERADA",
+                attempt.ResponseDescription);
+            Assert.Equal("<soap>duplicate</soap>", attempt.ResponsePayload);
+
+            Assert.Empty(await verify.DeadLetterMessages.ToListAsync());
+        }
+        finally
+        {
+            await DeleteDatabaseAsync(connectionString);
+        }
+    }
+
     private static async Task<int> SeedQueuedRecordAsync(string connectionString)
     {
         await using var context = CreateContext(connectionString);
@@ -253,6 +342,37 @@ public sealed class OutboxProcessorIntegrationTests
         catch
         {
         }
+    }
+
+    private sealed class DuplicateGateway : IVeriFactuGateway
+    {
+        public Task<VeriFactuSubmissionResult> SubmitBillingRecordAsync(
+            VeriFactuSubmissionRequest request,
+            CancellationToken cancellationToken = default)
+            => Task.FromResult(new VeriFactuSubmissionResult
+            {
+                SubmissionId = null,
+                IsAccepted = false,
+                ResponseCode = AeatResponseCode.DuplicateError,
+                StatusCode = "Incorrecto",
+                RecordStatus = "Incorrecto",
+                StatusDescription = "Registro de facturación duplicado",
+                ErrorCode = "3000",
+                IsDuplicate = true,
+                DuplicateRecordStatus = "Correcta",
+                DuplicateRequestId = "PETICION-RECUPERADA",
+                RawResponsePayload = "<soap>duplicate</soap>"
+            });
+
+        public Task<VeriFactuQueryResult> QueryBillingRecordAsync(
+            VeriFactuQueryRequest request,
+            CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
+
+        public Task<VeriFactuCancellationResult> CancelBillingRecordAsync(
+            VeriFactuCancellationRequest request,
+            CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
     }
 
     private sealed class AcceptedGateway : IVeriFactuGateway
