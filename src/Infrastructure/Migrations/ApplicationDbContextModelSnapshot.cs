@@ -68,6 +68,29 @@ namespace gesFactu.Infrastructure.Migrations
                     b.ToTable("BillingRecords", (string)null);
                 });
 
+            modelBuilder.Entity("gesFactu.Domain.Entities.BillingTaxDetail", b =>
+                {
+                    b.Property<int>("Id").ValueGeneratedOnAdd().HasColumnType("integer");
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+                    b.Property<int>("BillingRecordId").HasColumnType("integer");
+                    b.Property<DateTime?>("CreateDate").HasColumnType("timestamp with time zone");
+                    b.Property<string>("CreatedBy").HasColumnType("text");
+                    b.Property<decimal?>("EquivalenceSurchargeAmount").HasPrecision(18, 2).HasColumnType("numeric(18,2)");
+                    b.Property<decimal?>("EquivalenceSurchargeRate").HasPrecision(5, 2).HasColumnType("numeric(5,2)");
+                    b.Property<string>("ExemptionCause").HasMaxLength(2).HasColumnType("character varying(2)");
+                    b.Property<DateTime?>("LastModifiedDate").HasColumnType("timestamp with time zone");
+                    b.Property<string>("LastModifiedBy").HasColumnType("text");
+                    b.Property<string>("OperationQualification").HasMaxLength(2).HasColumnType("character varying(2)");
+                    b.Property<string>("RegimeCode").HasMaxLength(2).HasColumnType("character varying(2)");
+                    b.Property<decimal?>("TaxAmount").HasPrecision(18, 2).HasColumnType("numeric(18,2)");
+                    b.Property<decimal>("TaxBase").HasPrecision(18, 2).HasColumnType("numeric(18,2)");
+                    b.Property<string>("TaxCode").HasMaxLength(2).HasColumnType("character varying(2)");
+                    b.Property<decimal?>("TaxRate").HasPrecision(5, 2).HasColumnType("numeric(5,2)");
+                    b.HasKey("Id");
+                    b.HasIndex("BillingRecordId", "Id").HasDatabaseName("IX_BillingTaxDetails_Record_Order");
+                    b.ToTable("BillingTaxDetails", (string)null);
+                });
+
             modelBuilder.Entity("gesFactu.Domain.Entities.DeadLetterMessage", b =>
                 {
                     b.Property<Guid>("Id").ValueGeneratedOnAdd().HasColumnType("uuid");
@@ -113,6 +136,16 @@ namespace gesFactu.Infrastructure.Migrations
                     b.ToTable("OutboxMessages", (string)null);
                 });
 
+            modelBuilder.Entity("gesFactu.Domain.Entities.BillingTaxDetail", b =>
+                {
+                    b.HasOne("gesFactu.Domain.Entities.BillingRecord", "BillingRecord")
+                        .WithMany("TaxDetails")
+                        .HasForeignKey("BillingRecordId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                    b.Navigation("BillingRecord");
+                });
+
             modelBuilder.Entity("gesFactu.Domain.Entities.SubmissionAttempt", b =>
                 {
                     b.Property<Guid>("Id").ValueGeneratedOnAdd().HasColumnType("uuid");
@@ -145,7 +178,11 @@ namespace gesFactu.Infrastructure.Migrations
                     b.Navigation("BillingRecord");
                 });
 
-            modelBuilder.Entity("gesFactu.Domain.Entities.BillingRecord", b => b.Navigation("SubmissionAttempts"));
+            modelBuilder.Entity("gesFactu.Domain.Entities.BillingRecord", b =>
+                {
+                    b.Navigation("SubmissionAttempts");
+                    b.Navigation("TaxDetails");
+                });
 #pragma warning restore 612, 618
         }
     }
