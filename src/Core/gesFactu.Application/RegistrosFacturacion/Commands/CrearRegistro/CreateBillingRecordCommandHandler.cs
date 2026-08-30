@@ -133,8 +133,8 @@ public sealed class CreateBillingRecordCommandHandler
 
             // Un solo generador puede avanzar la cadena de este obligado tributario
             // al mismo tiempo, incluso si hay varias instancias de la API.
-            await _dbContext.AcquireFiscalChainLockAsync(
-                nif.Value,
+            await _dbContext.AcquireExclusiveLockAsync(
+                $"VERIFACTU_CHAIN:{nif.Value}",
                 cancellationToken);
 
             // Idempotencia por la identidad fiscal que se envía a AEAT.
