@@ -37,6 +37,8 @@ public static class DependencyInjection
         services.AddScoped<IOutboxStore, OutboxStore>();
         services.AddScoped<IDeadLetterStore, DeadLetterStore>();
         services.AddScoped<ISubmissionAttemptStore, SubmissionAttemptStore>();
+        services.AddScoped<IAuditLogReader, AuditLogReader>();
+        services.AddScoped<IOperationalMetricsStore, OperationalMetricsStore>();
         services.AddSingleton<IHashCalculator, Sha256HashCalculator>();
         services.AddScoped<IQRCodeGenerator, QRCodeGenerator>();
         services.AddVeriFactuClient(configuration);
