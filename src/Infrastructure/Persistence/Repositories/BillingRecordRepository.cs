@@ -61,6 +61,7 @@ public sealed class BillingRecordRepository : IBillingRecordRepository
                 r => r.IssuerNif == issuerNif
                      && r.FiscalInvoiceNumber == fiscalInvoiceNumber
                      && r.IssueDate == issueDate
+                     && r.RecordType == BillingRecord.AltaRecordType
                      && r.SubsanatesBillingRecordId == null,
                 cancellationToken);
     }
@@ -76,6 +77,25 @@ public sealed class BillingRecordRepository : IBillingRecordRepository
                  r.Status == "Enviado"))
             .OrderByDescending(r => r.Id)
             .FirstOrDefaultAsync(cancellationToken);
+
+    public Task<BillingRecord?> GetCancellationForFiscalIdentityAsync(
+        string issuerNif,
+        string fiscalInvoiceNumber,
+        DateOnly issueDate,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(issuerNif);
+        ArgumentException.ThrowIfNullOrWhiteSpace(fiscalInvoiceNumber);
+
+        return _dbContext.BillingRecords
+            .Where(r =>
+                r.IssuerNif == issuerNif &&
+                r.FiscalInvoiceNumber == fiscalInvoiceNumber &&
+                r.IssueDate == issueDate &&
+                r.RecordType == BillingRecord.CancellationRecordType)
+            .OrderByDescending(r => r.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+    }
 
     public async Task<IEnumerable<BillingRecord>> ListByIssuerAsync(
         string issuerNif,
