@@ -18,4 +18,8 @@ public sealed class ConfiguredVeriFactuSystemContext : IVeriFactuSystemContext
     public string SystemId => _options.SistemaInformatico.IdSistemaInformatico;
     public string Version => _options.SistemaInformatico.Version;
     public string InstallationNumber => _options.SistemaInformatico.NumeroInstalacion;
+
+    public string GetInstallationNumber(string taxpayerNif)
+        => _options.GetSistemaInformaticoForTaxpayer(taxpayerNif)
+            .NumeroInstalacion;
 }
