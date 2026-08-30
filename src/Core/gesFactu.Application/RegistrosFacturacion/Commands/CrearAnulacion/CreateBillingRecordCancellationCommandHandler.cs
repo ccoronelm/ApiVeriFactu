@@ -157,7 +157,8 @@ public sealed class CreateBillingRecordCancellationCommandHandler
                 tax,
                 previousRecord.Id,
                 previousRecord.ComputedHash,
-                registerTimestamp);
+                registerTimestamp,
+                source.InvoiceType);
 
             cancellation.RecordType = BillingRecord.CancellationRecordType;
             cancellation.CancelsBillingRecordId = source.Id;
