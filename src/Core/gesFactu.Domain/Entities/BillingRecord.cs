@@ -6,9 +6,6 @@ namespace gesFactu.Domain.Entities;
 
 /// <summary>
 /// Registro de facturación (alta) en VERI*FACTU.
-/// Es el agregado raíz que encapsula el estado de una factura registrada.
-///
-/// Ref: /VERIFACTU/SuministroInformacion.xsd.xml - RegistroFacturacionAltaType
 /// </summary>
 public class BillingRecord : BaseDomainModel
 {
@@ -17,6 +14,13 @@ public class BillingRecord : BaseDomainModel
     public string IssuerNif { get; set; } = string.Empty;
     public string InvoiceSeries { get; set; } = string.Empty;
     public string InvoiceNumber { get; set; } = string.Empty;
+
+    /// <summary>
+    /// NumSerieFactura exactamente como se identifica fiscalmente ante AEAT:
+    /// serie + número, sin separador añadido por gesFactu.
+    /// </summary>
+    public string FiscalInvoiceNumber { get; set; } = string.Empty;
+
     public DateOnly IssueDate { get; set; }
 
     public required string IssuerName { get; set; }
@@ -26,20 +30,21 @@ public class BillingRecord : BaseDomainModel
     public decimal TotalTaxAmount { get; set; }
 
     /// <summary>
-    /// Valor exacto usado en FechaHoraHusoGenRegistro y en el cálculo de la huella.
-    /// Se persiste para garantizar que hash y XML usan exactamente el mismo valor.
-    /// Formato canónico generado por gesFactu: yyyy-MM-ddTHH:mm:sszzz.
+    /// Valor exacto usado en FechaHoraHusoGenRegistro y en la huella.
     /// </summary>
     public string RegisterTimestamp { get; set; } = string.Empty;
 
     /// <summary>
-    /// Huella del registro anterior. Null si es el primer registro.
+    /// Identificador interno del RF inmediatamente anterior de la cadena.
+    /// Null solo para el primer RF del obligado tributario en este SIF.
+    /// </summary>
+    public int? PreviousBillingRecordId { get; set; }
+
+    /// <summary>
+    /// Huella del RF inmediatamente anterior.
     /// </summary>
     public string? PreviousRecordHash { get; set; }
 
-    /// <summary>
-    /// Huella calculada para este registro.
-    /// </summary>
     public string? ComputedHash { get; set; }
 
     public bool IsSubmitted { get; set; }
@@ -54,9 +59,12 @@ public class BillingRecord : BaseDomainModel
         string description,
         Money totalAmount,
         Money totalTaxAmount,
+        int? previousBillingRecordId = null,
         string? previousRecordHash = null,
         string? registerTimestamp = null)
     {
+        ArgumentNullException.ThrowIfNull(invoiceIdentifier);
+
         if (string.IsNullOrWhiteSpace(issuerName))
             throw new InvalidOperationException("El nombre del emisor es requerido");
 
@@ -64,10 +72,29 @@ public class BillingRecord : BaseDomainModel
             throw new InvalidOperationException("La descripción de la operación es requerida");
 
         if (totalTaxAmount.Amount > totalAmount.Amount)
-            throw new InvalidOperationException("La cuota de impuesto no puede ser mayor que el importe total");
+            throw new InvalidOperationException(
+                "La cuota de impuesto no puede ser mayor que el importe total");
+
+        if (previousBillingRecordId.HasValue != !string.IsNullOrWhiteSpace(previousRecordHash))
+        {
+            throw new InvalidOperationException(
+                "PreviousBillingRecordId y PreviousRecordHash deben informarse juntos.");
+        }
+
+        var fiscalInvoiceNumber =
+            invoiceIdentifier.Series.Value.Trim() +
+            invoiceIdentifier.Number.Value.Trim();
+
+        if (fiscalInvoiceNumber.Length > 60)
+        {
+            throw new InvalidOperationException(
+                "NumSerieFactura no puede superar 60 caracteres.");
+        }
 
         var timestamp = string.IsNullOrWhiteSpace(registerTimestamp)
-            ? DateTimeOffset.Now.ToString("yyyy-MM-ddTHH:mm:sszzz", CultureInfo.InvariantCulture)
+            ? DateTimeOffset.Now.ToString(
+                "yyyy-MM-ddTHH:mm:sszzz",
+                CultureInfo.InvariantCulture)
             : registerTimestamp.Trim();
 
         return new BillingRecord
@@ -76,12 +103,14 @@ public class BillingRecord : BaseDomainModel
             IssuerNif = invoiceIdentifier.IssuerNif.Value,
             InvoiceSeries = invoiceIdentifier.Series.Value,
             InvoiceNumber = invoiceIdentifier.Number.Value,
+            FiscalInvoiceNumber = fiscalInvoiceNumber,
             IssueDate = invoiceIdentifier.IssueDate,
             IssuerName = issuerName,
             Description = description,
             TotalAmount = totalAmount.Amount,
             TotalTaxAmount = totalTaxAmount.Amount,
             RegisterTimestamp = timestamp,
+            PreviousBillingRecordId = previousBillingRecordId,
             PreviousRecordHash = previousRecordHash,
             Status = "Pendiente",
             IsSubmitted = false
@@ -98,10 +127,7 @@ public class BillingRecord : BaseDomainModel
         Status = "Enviado";
     }
 
-    public void MarkAsAccepted()
-    {
-        Status = "Aceptado";
-    }
+    public void MarkAsAccepted() => Status = "Aceptado";
 
     public void MarkAsRejected(string reason)
     {
