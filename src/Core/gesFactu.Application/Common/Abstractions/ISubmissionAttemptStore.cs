@@ -1,7 +1,7 @@
 namespace gesFactu.Application.Common.Abstractions;
 
 /// <summary>
-/// Puerto para persistencia de intentos de envío a AEAT (auditoría).
+/// Puerto de auditoría persistente de cada intento de comunicación con AEAT.
 /// </summary>
 public interface ISubmissionAttemptStore
 {
@@ -37,6 +37,15 @@ public interface ISubmissionAttemptStore
         int durationMilliseconds,
         CancellationToken cancellationToken);
 
+    Task MarkAsCommunicationErrorAsync(
+        Guid attemptId,
+        string responseCode,
+        string? responseDescription,
+        string? responsePayload,
+        string? notes,
+        int durationMilliseconds,
+        CancellationToken cancellationToken);
+
     Task<List<SubmissionAttemptDto>> GetByBillingRecordIdAsync(
         int billingRecordId,
         CancellationToken cancellationToken);
@@ -50,9 +59,6 @@ public interface ISubmissionAttemptStore
         CancellationToken cancellationToken);
 }
 
-/// <summary>
-/// DTO de un intento de envío (agnóstico a Entity Framework).
-/// </summary>
 public record SubmissionAttemptDto(
     Guid Id,
     int Número,
@@ -62,4 +68,5 @@ public record SubmissionAttemptDto(
     string? CódigoRespuesta,
     string? DescripciónRespuesta,
     int? DuraciónMs,
-    string? SubmissionIdAEAT);
+    string? SubmissionIdAEAT,
+    string? Notas);
