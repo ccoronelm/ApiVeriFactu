@@ -21,7 +21,8 @@ public sealed class AuditAndIntegrityTests
 
         await db.SaveChangesAsync();
 
-        var audit = await db.AuditLogs.SingleAsync();
+        var audit = await db.AuditLogs
+            .SingleAsync(x => x.EntityName == "BillingRecord");
 
         Assert.Equal("BillingRecord", audit.EntityName);
         Assert.Equal(record.Id.ToString(), audit.EntityId);
@@ -42,16 +43,17 @@ public sealed class AuditAndIntegrityTests
         db.BillingRecords.Add(record);
         await db.SaveChangesAsync();
 
-        db.AuditLogs.RemoveRange(db.AuditLogs);
-        await db.SaveChangesAsync();
+        var auditCountBefore = await db.AuditLogs.CountAsync();
 
         record.Status = "Aceptado";
         await db.SaveChangesAsync();
 
         var audit = await db.AuditLogs
+            .Where(x => x.EntityName == "BillingRecord")
             .OrderByDescending(x => x.OccurredAtUtc)
             .FirstAsync();
 
+        Assert.True(await db.AuditLogs.CountAsync() > auditCountBefore);
         Assert.Equal("Updated", audit.Action);
         Assert.Contains("Status", audit.OldValues);
         Assert.Contains("Status", audit.NewValues);
@@ -91,6 +93,32 @@ public sealed class AuditAndIntegrityTests
             () => db.SaveChangesAsync());
 
         Assert.Contains("no pueden borrarse", ex.Message);
+    }
+
+    [Fact]
+    public async Task AuditLog_CannotBeModifiedOrDeleted()
+    {
+        await using var db = CreateDbContext();
+
+        var record = CreateRecord();
+        db.BillingRecords.Add(record);
+        await db.SaveChangesAsync();
+
+        var audit = await db.AuditLogs.FirstAsync();
+        audit.Actor = "tampered";
+
+        var updateError = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => db.SaveChangesAsync());
+
+        Assert.Contains("append-only", updateError.Message);
+
+        db.Entry(audit).State = EntityState.Unchanged;
+        db.AuditLogs.Remove(audit);
+
+        var deleteError = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => db.SaveChangesAsync());
+
+        Assert.Contains("append-only", deleteError.Message);
     }
 
     [Fact]
