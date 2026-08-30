@@ -4,7 +4,7 @@ using gesFactu.Application.Common;
 namespace gesFactu.Application.RegistrosFacturacion.Commands.CrearRegistro;
 
 /// <summary>
-/// Comando para crear un nuevo registro de facturación.
+/// Comando para crear un RegistroAlta F1.
 /// El encadenamiento VERI*FACTU se resuelve internamente por gesFactu.
 /// </summary>
 public sealed record CreateBillingRecordCommand(
@@ -13,6 +13,8 @@ public sealed record CreateBillingRecordCommand(
     string InvoiceNumber,
     string IssueDate,
     string IssuerName,
+    string RecipientNif,
+    string RecipientName,
     string Description,
     decimal TotalAmount,
     decimal TotalTaxAmount
