@@ -135,9 +135,7 @@ public sealed class EnviarRegistroAEATCommandHandler
 
             var correlationId = Guid.NewGuid();
 
-            // Aquí AeatSubmissionId todavía contiene el identificador local de correlación.
-            // Se sustituirá por el CSV/identificador real cuando el Outbox procese la respuesta AEAT.
-            record.MarkAsSubmitted(correlationId.ToString());
+            record.MarkAsQueued(correlationId);
 
             var outboxMessage = new OutboxMessage
             {
@@ -163,7 +161,8 @@ public sealed class EnviarRegistroAEATCommandHandler
                 new EnviarRegistroAEATResponse
                 {
                     BillingRecordId = record.Id,
-                    AeatSubmissionId = correlationId.ToString(),
+                    CorrelationId = correlationId.ToString(),
+                    AeatSubmissionId = null,
                     IsAccepted = false,
                     Status = "PENDING",
                     StatusDescription = "Pendiente de envío a AEAT",
