@@ -32,6 +32,24 @@ public static class BillingRecordToVeriFactuMapper
                 "BillingRecord debe tener RegisterTimestamp persistido antes de generar el XML de envío.");
         }
 
+        if (billingRecord.PreviousBillingRecordId.HasValue && previousRecord is null)
+        {
+            throw new InvalidOperationException(
+                "El RF anterior es obligatorio para construir Encadenamiento/RegistroAnterior.");
+        }
+
+        if (previousRecord is not null &&
+            (!billingRecord.PreviousBillingRecordId.HasValue ||
+             billingRecord.PreviousBillingRecordId.Value != previousRecord.Id ||
+             !string.Equals(
+                 billingRecord.PreviousRecordHash,
+                 previousRecord.ComputedHash,
+                 StringComparison.Ordinal)))
+        {
+            throw new InvalidOperationException(
+                "La referencia persistida al RF anterior no coincide con el registro proporcionado.");
+        }
+
         var baseImponible = billingRecord.TotalAmount - billingRecord.TotalTaxAmount;
         var detalles = new List<DetalleDesgloseData>
         {
