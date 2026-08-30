@@ -86,7 +86,7 @@ public static class SubmissionTimestampPolicy
                     InvoiceSeries = record.InvoiceSeries,
                     InvoiceNumber = record.InvoiceNumber,
                     IssueDate = issueDate,
-                    InvoiceType = "F1",
+                    InvoiceType = record.InvoiceType,
                     TotalAmount = record.TotalAmount,
                     TotalTaxAmount = record.TotalTaxAmount,
                     RegisterTimestamp = record.RegisterTimestamp
