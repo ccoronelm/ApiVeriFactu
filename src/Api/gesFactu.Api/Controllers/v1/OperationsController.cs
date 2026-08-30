@@ -4,6 +4,8 @@ using gesFactu.Api.Configuration;
 using gesFactu.Application.Common;
 using gesFactu.Application.Operaciones.Commands.RequeueDeadLetter;
 using gesFactu.Application.Operaciones.Queries.DeadLetters;
+using gesFactu.Application.Operaciones.Queries.Audit;
+using gesFactu.Application.Operaciones.Queries.Metrics;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
@@ -40,6 +42,42 @@ public sealed class OperationsController : ControllerBase
 
         return Ok(await _mediator.Send(
             new GetDeadLettersQuery(take),
+            cancellationToken));
+    }
+
+    [HttpGet("audit")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> GetAudit(
+        [FromQuery] string? entityName = null,
+        [FromQuery] string? entityId = null,
+        [FromQuery] string? correlationId = null,
+        [FromQuery] int take = 100,
+        CancellationToken cancellationToken = default)
+    {
+        if (!IsAuthorized())
+            return UnauthorizedProblem();
+
+        return Ok(await _mediator.Send(
+            new GetAuditLogQuery(
+                entityName,
+                entityId,
+                correlationId,
+                take),
+            cancellationToken));
+    }
+
+    [HttpGet("metrics")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> GetMetrics(
+        CancellationToken cancellationToken = default)
+    {
+        if (!IsAuthorized())
+            return UnauthorizedProblem();
+
+        return Ok(await _mediator.Send(
+            new GetOperationalMetricsQuery(),
             cancellationToken));
     }
 
