@@ -45,6 +45,8 @@ public sealed class GetBillingRecordQueryHandler
                 record.Id,
                 invoiceId,
                 record.IssuerName,
+                record.RecipientNif,
+                record.RecipientName,
                 record.Description,
                 record.TotalAmount,
                 record.TotalTaxAmount,
