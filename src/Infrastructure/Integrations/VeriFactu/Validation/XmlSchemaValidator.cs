@@ -183,6 +183,12 @@ public sealed class XmlSchemaValidator : IXmlSchemaValidator
                 break;
 
             case VeriFactuXmlSchemaType.SubmissionResponse:
+                // RespuestaSuministro importa tanto SuministroInformacion como SuministroLR.
+                TryAddOfficialSchema(
+                    schemaSet,
+                    "SuministroLR.xsd.xml",
+                    NsSfLr,
+                    loadErrors);
                 TryAddOfficialSchema(
                     schemaSet,
                     "RespuestaSuministro.xsd.xml",
