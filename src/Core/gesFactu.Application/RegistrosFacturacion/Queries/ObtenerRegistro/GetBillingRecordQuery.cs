@@ -15,6 +15,8 @@ public sealed record BillingRecordDto(
     int Id,
     string InvoiceIdentifier,
     string IssuerName,
+    string RecipientNif,
+    string RecipientName,
     string Description,
     decimal TotalAmount,
     decimal TotalTaxAmount,
