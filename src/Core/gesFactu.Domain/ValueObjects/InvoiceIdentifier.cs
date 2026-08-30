@@ -1,7 +1,7 @@
 namespace gesFactu.Domain.ValueObjects;
 
 /// <summary>
-/// Resultado de una operación de validación en Value Objects.
+/// Resultado de una operaciÃ³n de validaciÃ³n en Value Objects.
 /// Los Value Objects pueden retornar errores sin depender de Application.
 /// </summary>
 public abstract record ValueObjectResult
@@ -18,7 +18,7 @@ public abstract record ValueObjectResult<T> : ValueObjectResult
 
 /// <summary>
 /// NIF/CIF del contribuyente.
-/// Value Object que encapsula validaciones básicas de formato.
+/// Value Object que encapsula validaciones bÃ¡sicas de formato.
 /// </summary>
 public record TaxpayerNif
 {
@@ -32,20 +32,20 @@ public record TaxpayerNif
     public static ValueObjectResult<TaxpayerNif> Create(string? value)
     {
         if (string.IsNullOrWhiteSpace(value))
-            return new ValueObjectResult<TaxpayerNif>.ValidationError(nameof(TaxpayerNif), "El NIF/CIF no puede estar vacío");
+            return new ValueObjectResult<TaxpayerNif>.ValidationError(nameof(TaxpayerNif), "El NIF/CIF no puede estar vacÃ­o");
 
         var trimmed = value.Trim().ToUpperInvariant();
 
-        // Validación básica de formato (NIF/CIF español)
-        if (trimmed.Length < 8 || trimmed.Length > 9)
-            return new ValueObjectResult<TaxpayerNif>.ValidationError(nameof(TaxpayerNif), "El NIF/CIF debe tener entre 8 y 9 caracteres");
+        // El XSD oficial AEAT define NIFType con longitud exacta de 9 caracteres.
+        if (trimmed.Length != 9)
+            return new ValueObjectResult<TaxpayerNif>.ValidationError(nameof(TaxpayerNif), "El NIF debe tener exactamente 9 caracteres");
 
         return new ValueObjectResult<TaxpayerNif>.SuccessWithValue(new TaxpayerNif(trimmed));
     }
 }
 
 /// <summary>
-/// Número de serie de factura (p.ej., "12345678-G66").
+/// NÃºmero de serie de factura (p.ej., "12345678-G66").
 /// </summary>
 public record InvoiceSeries
 {
@@ -59,7 +59,7 @@ public record InvoiceSeries
     public static ValueObjectResult<InvoiceSeries> Create(string? value)
     {
         if (string.IsNullOrWhiteSpace(value))
-            return new ValueObjectResult<InvoiceSeries>.ValidationError(nameof(InvoiceSeries), "La serie de factura no puede estar vacía");
+            return new ValueObjectResult<InvoiceSeries>.ValidationError(nameof(InvoiceSeries), "La serie de factura no puede estar vacÃ­a");
 
         var trimmed = value.Trim();
 
@@ -71,7 +71,7 @@ public record InvoiceSeries
 }
 
 /// <summary>
-/// Número de factura dentro de la serie.
+/// NÃºmero de factura dentro de la serie.
 /// </summary>
 public record InvoiceNumber
 {
@@ -85,20 +85,20 @@ public record InvoiceNumber
     public static ValueObjectResult<InvoiceNumber> Create(string? value)
     {
         if (string.IsNullOrWhiteSpace(value))
-            return new ValueObjectResult<InvoiceNumber>.ValidationError(nameof(InvoiceNumber), "El número de factura no puede estar vacío");
+            return new ValueObjectResult<InvoiceNumber>.ValidationError(nameof(InvoiceNumber), "El nÃºmero de factura no puede estar vacÃ­o");
 
         var trimmed = value.Trim();
 
         if (trimmed.Length > 60)
-            return new ValueObjectResult<InvoiceNumber>.ValidationError(nameof(InvoiceNumber), "El número de factura no puede superar 60 caracteres");
+            return new ValueObjectResult<InvoiceNumber>.ValidationError(nameof(InvoiceNumber), "El nÃºmero de factura no puede superar 60 caracteres");
 
         return new ValueObjectResult<InvoiceNumber>.SuccessWithValue(new InvoiceNumber(trimmed));
     }
 }
 
 /// <summary>
-/// Identificador único de una factura dentro de un contribuyente.
-/// Compuesto por NIF, Serie y Número.
+/// Identificador Ãºnico de una factura dentro de un contribuyente.
+/// Compuesto por NIF, Serie y NÃºmero.
 /// </summary>
 public record InvoiceIdentifier
 {
@@ -126,7 +126,7 @@ public record InvoiceIdentifier
         if (series == null)
             return new ValueObjectResult<InvoiceIdentifier>.ValidationError(nameof(series), "La serie de factura es requerida");
         if (number == null)
-            return new ValueObjectResult<InvoiceIdentifier>.ValidationError(nameof(number), "El número de factura es requerido");
+            return new ValueObjectResult<InvoiceIdentifier>.ValidationError(nameof(number), "El nÃºmero de factura es requerido");
 
         return new ValueObjectResult<InvoiceIdentifier>.SuccessWithValue(
             new InvoiceIdentifier(issuerNif, series, number, issueDate));
@@ -135,7 +135,7 @@ public record InvoiceIdentifier
 
 /// <summary>
 /// Importe monetario en EUR.
-/// Siempre usa decimal para precisión fiscal.
+/// Siempre usa decimal para precisiÃ³n fiscal.
 /// </summary>
 public record Money
 {
@@ -151,9 +151,9 @@ public record Money
         if (amount < 0)
             return new ValueObjectResult<Money>.ValidationError(nameof(Money), "El importe no puede ser negativo");
 
-        // Máximo 2 decimales para EUR
+        // MÃ¡ximo 2 decimales para EUR
         if (decimal.Round(amount, 2) != amount)
-            return new ValueObjectResult<Money>.ValidationError(nameof(Money), "El importe no puede tener más de 2 decimales");
+            return new ValueObjectResult<Money>.ValidationError(nameof(Money), "El importe no puede tener mÃ¡s de 2 decimales");
 
         return new ValueObjectResult<Money>.SuccessWithValue(new Money(amount));
     }
@@ -176,9 +176,9 @@ public record TaxRate
         if (percentage < 0 || percentage > 100)
             return new ValueObjectResult<TaxRate>.ValidationError(nameof(TaxRate), "El porcentaje debe estar entre 0 y 100");
 
-        // Máximo 2 decimales
+        // MÃ¡ximo 2 decimales
         if (decimal.Round(percentage, 2) != percentage)
-            return new ValueObjectResult<TaxRate>.ValidationError(nameof(TaxRate), "El porcentaje no puede tener más de 2 decimales");
+            return new ValueObjectResult<TaxRate>.ValidationError(nameof(TaxRate), "El porcentaje no puede tener mÃ¡s de 2 decimales");
 
         return new ValueObjectResult<TaxRate>.SuccessWithValue(new TaxRate(percentage));
     }
