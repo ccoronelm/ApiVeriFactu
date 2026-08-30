@@ -2,6 +2,7 @@ using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using gesFactu.Application.Common;
 using gesFactu.Application.RegistrosFacturacion.Commands.CrearRegistro;
+using gesFactu.Application.RegistrosFacturacion.Commands.CrearSubsanacion;
 using gesFactu.Application.RegistrosFacturacion.Commands.EnviarAEAT;
 using gesFactu.Application.RegistrosFacturacion.Queries.ObtenerRegistro;
 using gesFactu.Application.Auditoría.Queries.ObtenerHistorialEnvíos;
@@ -190,6 +191,90 @@ public class BillingRecordsController : ControllerBase
     }
 
     /// <summary>
+    /// Genera un nuevo RegistroAlta de subsanación para un registro previamente
+    /// aceptado por AEAT. Mantiene la misma clave fiscal, genera nueva huella y
+    /// se encadena con el último RF generado por el SIF.
+    /// </summary>
+    [HttpPost("{id}/subsanations")]
+    [ProducesResponseType(StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> CreateSubsanation(
+        int id,
+        [FromBody] CreateBillingRecordSubsanationRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await _mediator.Send(
+            new CreateBillingRecordSubsanationCommand(
+                id,
+                request.RecipientNif,
+                request.RecipientName,
+                request.Description,
+                request.TotalAmount,
+                request.TotalTaxAmount),
+            cancellationToken);
+
+        return result switch
+        {
+            Result<CreateBillingRecordSubsanationResponse>.SuccessWithValue success =>
+                CreatedAtAction(
+                    nameof(GetBillingRecord),
+                    new { id = success.Value.BillingRecordId },
+                    success.Value),
+
+            Result<CreateBillingRecordSubsanationResponse>.NotFoundError notFound =>
+                NotFound(new ProblemDetails
+                {
+                    Title = "Not Found",
+                    Status = StatusCodes.Status404NotFound,
+                    Detail = $"Registro {notFound.Identifier} no encontrado",
+                    Instance = HttpContext.Request.Path
+                }),
+
+            Result<CreateBillingRecordSubsanationResponse>.ValidationError validation =>
+                BadRequest(new ProblemDetails
+                {
+                    Title = "Validation Failed",
+                    Status = StatusCodes.Status400BadRequest,
+                    Detail = validation.Message,
+                    Instance = HttpContext.Request.Path,
+                    Extensions = new Dictionary<string, object?> { { "field", validation.PropertyName } }
+                }),
+
+            Result<CreateBillingRecordSubsanationResponse>.DomainError domain =>
+                BadRequest(new ProblemDetails
+                {
+                    Title = "Business Rule Violation",
+                    Status = StatusCodes.Status400BadRequest,
+                    Detail = domain.Message,
+                    Instance = HttpContext.Request.Path
+                }),
+
+            Result<CreateBillingRecordSubsanationResponse>.ConflictError conflict =>
+                Conflict(new ProblemDetails
+                {
+                    Title = "Conflict",
+                    Status = StatusCodes.Status409Conflict,
+                    Detail = conflict.Message,
+                    Instance = HttpContext.Request.Path
+                }),
+
+            Result<CreateBillingRecordSubsanationResponse>.UnexpectedError unexpected =>
+                StatusCode(StatusCodes.Status500InternalServerError, new ProblemDetails
+                {
+                    Title = "Internal Server Error",
+                    Status = StatusCodes.Status500InternalServerError,
+                    Detail = unexpected.Message,
+                    Instance = HttpContext.Request.Path
+                }),
+
+            _ => StatusCode(StatusCodes.Status500InternalServerError)
+        };
+    }
+
+    /// <summary>
     /// Envía un registro de facturación a AEAT.
     /// 
     /// Precondición: El registro debe existir y tener un hash calculado.
@@ -321,4 +406,18 @@ public sealed record CreateBillingRecordRequest
     /// Cuota total de impuesto
     /// </summary>
     public required decimal TotalTaxAmount { get; init; }
+}
+
+
+/// <summary>
+/// Datos corregidos para una subsanación. Los campos omitidos conservan el
+/// valor del registro que se subsana. La clave fiscal no se modifica.
+/// </summary>
+public sealed record CreateBillingRecordSubsanationRequest
+{
+    public string? RecipientNif { get; init; }
+    public string? RecipientName { get; init; }
+    public string? Description { get; init; }
+    public decimal? TotalAmount { get; init; }
+    public decimal? TotalTaxAmount { get; init; }
 }

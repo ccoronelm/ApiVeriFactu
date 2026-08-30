@@ -31,7 +31,10 @@ public sealed class RegistroAltaXmlBuilderAdapterTests
         }
     };
 
-    private static RegistroAltaData CreateRegistroAltaData(string invoiceNumber, string hash) => new()
+    private static RegistroAltaData CreateRegistroAltaData(
+        string invoiceNumber,
+        string hash,
+        bool isSubsanacion = false) => new()
     {
         IssuerNif = "89890001K",
         IssuerName = "CERTIFICADO UNO TELEMATICAS",
@@ -40,6 +43,7 @@ public sealed class RegistroAltaXmlBuilderAdapterTests
         IssueDate = new DateOnly(2025, 2, 3),
         RecipientNif = "87654321B",
         RecipientName = "DESTINATARIO PRUEBAS",
+        IsSubsanacion = isSubsanacion,
         TipoFactura = "F1",
         Description = "Servicio de pruebas",
         CuotaTotal = 21.00m,
@@ -120,6 +124,37 @@ public sealed class RegistroAltaXmlBuilderAdapterTests
         Assert.Equal(
             "87654321B",
             destinatario.Element(nsSf + "NIF")?.Value);
+    }
+
+    [Fact]
+    public async Task BuildRegFactuXml_Subsanacion_IncluyeIndicadorYValidaXsd()
+    {
+        var xmlBuilder = new RegistroAltaXmlBuilderAdapter(
+            Options.Create(CreateOptions()));
+
+        var xml = xmlBuilder.BuildRegFactuXml(
+            CreateRegistroAltaData(
+                "00000004",
+                "DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD",
+                isSubsanacion: true));
+
+        var nsSf = (System.Xml.Linq.XNamespace)
+            "https://www2.agenciatributaria.gob.es/static_files/common/internet/dep/aplicaciones/es/aeat/tike/cont/ws/SuministroInformacion.xsd";
+
+        var doc = System.Xml.Linq.XDocument.Parse(xml);
+
+        Assert.Equal(
+            "S",
+            doc.Descendants(nsSf + "Subsanacion").Single().Value);
+        Assert.Empty(doc.Descendants(nsSf + "RechazoPrevio"));
+
+        var result = await CreateValidator().ValidateAsync(
+            xml,
+            VeriFactuXmlSchemaType.BillingRecord);
+
+        Assert.True(
+            result.IsValid,
+            string.Join(" | ", result.Errors.Select(e => e.Message)));
     }
 
     [Fact]

@@ -167,3 +167,60 @@ En VERI*FACTU el certificado se usa para autenticación HTTPS/mTLS. No se añade
 ## 12. Alcance de esta fase
 
 Esta preparación cubre el primer **RegistroAlta F1** contra AEAT TEST. No implica que estén terminados todavía otros tipos de factura, rectificativas, anulaciones, consultas o el resto de obligaciones funcionales del producto.
+
+
+## 13. Subsanación de un registro aceptado por AEAT
+
+Cuando un RegistroAlta ya existe en AEAT con estado `Aceptado` o
+`AceptadoConErrores` y el error no exige factura rectificativa ni anulación,
+gesFactu puede generar un nuevo RegistroAlta de subsanación.
+
+La subsanación mantiene exactamente la misma clave fiscal
+(NIF + NumSerieFactura + FechaExpedicionFactura), no modifica el registro
+original, genera nueva `FechaHoraHusoGenRegistro` y nueva huella, y se
+encadena con el RF inmediatamente anterior generado por el SIF.
+
+Para esta operativa el XML incluye:
+
+```xml
+<Subsanacion>S</Subsanacion>
+```
+
+y se omite `RechazoPrevio` (equivalente a `N`) porque el registro ya existe
+en AEAT.
+
+Endpoint:
+
+```http
+POST /api/v1/BillingRecords/{id}/subsanations
+Content-Type: application/json
+```
+
+Para conservar los mismos datos y regenerar correctamente el registro:
+
+```json
+{}
+```
+
+También pueden corregirse los datos no identificativos:
+
+```json
+{
+  "recipientNif": "B98588544",
+  "recipientName": "INICIATIVAS EN ANALISIS CLINICOS SOCIEDAD LIMITADA",
+  "description": "Servicio corregido",
+  "totalAmount": 121.23,
+  "totalTaxAmount": 21.04
+}
+```
+
+La respuesta devuelve un nuevo `BillingRecordId`. Ese registro se remite
+después por el flujo habitual:
+
+```http
+POST /api/v1/BillingRecords/{nuevoId}/submit
+```
+
+Esta fase cubre la subsanación habitual de registros que ya existen en AEAT.
+El alta tras rechazo previo se mantiene como una operativa separada porque
+requiere informar `RechazoPrevio`.

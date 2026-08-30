@@ -26,13 +26,18 @@ public interface IBillingRecordRepository
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Busca una factura por su identidad fiscal AEAT:
+    /// Busca el alta inicial por su identidad fiscal AEAT:
     /// emisor + NumSerieFactura + fecha de expedición.
+    /// Las subsanaciones reutilizan esa clave y se excluyen de esta búsqueda.
     /// </summary>
     Task<BillingRecord?> GetByFiscalIdentityAsync(
         string issuerNif,
         string fiscalInvoiceNumber,
         DateOnly issueDate,
+        CancellationToken cancellationToken = default);
+
+    Task<BillingRecord?> GetPendingSubsanationForSourceAsync(
+        int sourceBillingRecordId,
         CancellationToken cancellationToken = default);
 
     Task<IEnumerable<BillingRecord>> ListByIssuerAsync(
