@@ -59,10 +59,17 @@ public sealed class BillingRecordRepositoryTests : IDisposable
         string number,
         DateOnly? date = null)
     {
+        var recipientNif = string.Equals(
+            nif,
+            "87654321B",
+            StringComparison.OrdinalIgnoreCase)
+            ? "12345678A"
+            : "87654321B";
+
         var record = BillingRecord.Create(
             CreateInvoice(nif, series, number, date),
             "Issuer",
-            "87654321B",
+            recipientNif,
             "Recipient",
             $"Invoice {series}{number}",
             Money(121m),
