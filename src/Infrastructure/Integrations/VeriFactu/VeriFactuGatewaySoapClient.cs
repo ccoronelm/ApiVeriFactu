@@ -268,6 +268,13 @@ public sealed class VeriFactuGatewaySoapClient : IVeriFactuGateway
         var isAccepted =
             linea?.EstadoRegistro is "Correcto" or "AceptadoConErrores";
 
+        if (isAccepted && csv is null)
+        {
+            throw new VeriFactuCommunicationException(
+                "AEAT aceptó el registro pero la respuesta no contiene el CSV exigido para un envío no rechazado.",
+                isTransient: false);
+        }
+
         var errorCode = linea?.CodigoError;
         var isDuplicate = errorCode == "3000";
 
