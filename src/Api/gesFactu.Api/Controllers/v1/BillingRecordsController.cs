@@ -4,6 +4,7 @@ using gesFactu.Application.Common;
 using gesFactu.Application.RegistrosFacturacion.Commands.CrearRegistro;
 using gesFactu.Application.RegistrosFacturacion.Commands.EnviarAEAT;
 using gesFactu.Application.RegistrosFacturacion.Queries.ObtenerRegistro;
+using gesFactu.Application.Auditoría.Queries.ObtenerHistorialEnvíos;
 
 namespace gesFactu.Api.Controllers.v1;
 
@@ -168,6 +169,22 @@ public class BillingRecordsController : ControllerBase
 
             _ => StatusCode(StatusCodes.Status500InternalServerError)
         };
+    }
+
+    /// <summary>
+    /// Obtiene el historial de intentos de remisión AEAT del registro.
+    /// </summary>
+    [HttpGet("{id}/submission-attempts")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetSubmissionAttempts(
+        int id,
+        CancellationToken cancellationToken)
+    {
+        var result = await _mediator.Send(
+            new ObtenerHistorialEnvíosQuery(id),
+            cancellationToken);
+
+        return Ok(result);
     }
 
     /// <summary>
