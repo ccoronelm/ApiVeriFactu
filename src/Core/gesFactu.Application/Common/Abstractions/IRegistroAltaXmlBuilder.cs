@@ -1,10 +1,10 @@
 namespace gesFactu.Application.Common.Abstractions;
 
 /// <summary>
-/// Puerto para la construcción del XML de un RegistroAlta conforme a los XSD oficiales AEAT.
+/// Puerto para la construcciÃ³n del XML de un RegistroAlta conforme a los XSD oficiales AEAT.
 ///
-/// La implementación reside en Infrastructure (RegistroAltaXmlBuilder).
-/// Application solo conoce este contrato — nunca los detalles XSD/namespace.
+/// La implementaciÃ³n reside en Infrastructure (RegistroAltaXmlBuilder).
+/// Application solo conoce este contrato â€” nunca los detalles XSD/namespace.
 ///
 /// Ref: /VERIFACTU/SuministroLR.xsd.xml
 /// Ref: /VERIFACTU/SuministroInformacion.xsd.xml
@@ -20,7 +20,7 @@ public interface IRegistroAltaXmlBuilder
 
 /// <summary>
 /// Datos necesarios para construir un RegistroAlta.
-/// Este DTO es agnóstico de XML/XSD — no contiene namespaces ni tipos AEAT.
+/// Este DTO es agnÃ³stico de XML/XSD â€” no contiene namespaces ni tipos AEAT.
 /// </summary>
 public sealed class RegistroAltaData
 {
@@ -30,6 +30,10 @@ public sealed class RegistroAltaData
     public required string InvoiceSeries { get; init; }
     public required string InvoiceNumber { get; init; }
     public required DateOnly IssueDate  { get; init; }
+
+    // Destinatario obligatorio para F1.
+    public required string RecipientNif { get; init; }
+    public required string RecipientName { get; init; }
 
     // ?? Datos fiscales ????????????????????????????????????????????????????????
     /// <summary>Tipo de factura. "F1" para factura ordinaria.</summary>
@@ -49,7 +53,7 @@ public sealed class RegistroAltaData
     public required string?  PreviousInvoiceSeries { get; init; }
     public required string?  PreviousInvoiceNumber { get; init; }
 
-    // ?? Timestamp de generación ???????????????????????????????????????????????
+    // ?? Timestamp de generaciÃ³n ???????????????????????????????????????????????
     /// <summary>
     /// FechaHoraHusoGenRegistro en formato dateTime con huso horario.
     /// Ej: "2025-02-03T14:30:00+01:00"
@@ -65,13 +69,13 @@ public sealed class DetalleDesgloseData
     /// <summary>Impuesto: "01"=IVA (default). Ref: SuministroInformacion.xsd ImpuestoType.</summary>
     public string? Impuesto { get; init; }
 
-    /// <summary>Clave de régimen: "01"=Régimen general IVA.</summary>
+    /// <summary>Clave de rÃ©gimen: "01"=RÃ©gimen general IVA.</summary>
     public string? ClaveRegimen { get; init; }
 
     /// <summary>CalificacionOperacion: "S1","S2","N1","N2".</summary>
     public string CalificacionOperacion { get; init; } = "S1";
 
-    /// <summary>OperacionExenta: "E1"…"E8". Si se informa, no se informa CalificacionOperacion.</summary>
+    /// <summary>OperacionExenta: "E1"â€¦"E8". Si se informa, no se informa CalificacionOperacion.</summary>
     public string? OperacionExenta { get; init; }
 
     /// <summary>Tipo impositivo (%). Ej: 21m para IVA 21%.</summary>
