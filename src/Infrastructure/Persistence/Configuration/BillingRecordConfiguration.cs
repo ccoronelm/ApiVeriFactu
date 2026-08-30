@@ -43,8 +43,10 @@ public sealed class BillingRecordConfiguration : IEntityTypeConfiguration<Billin
         builder.Property(e => e.IsSubmitted)
             .HasDefaultValue(false);
 
+        builder.Property(e => e.SubmissionCorrelationId);
+
         builder.Property(e => e.AeatSubmissionId)
-            .HasMaxLength(50);
+            .HasMaxLength(100);
 
         builder.Property(e => e.Status)
             .IsRequired()
