@@ -28,7 +28,7 @@ public sealed class VeriFactuStartupValidator : IHostedService
 
     public Task StartAsync(CancellationToken cancellationToken)
     {
-        if (_options.ClientMode != VeriFactuClientMode.Soap)
+        if (_options.ClientMode != "SoapClient")
             return Task.CompletedTask;
 
         foreach (var taxpayer in _options.GetConfiguredTaxpayers())
