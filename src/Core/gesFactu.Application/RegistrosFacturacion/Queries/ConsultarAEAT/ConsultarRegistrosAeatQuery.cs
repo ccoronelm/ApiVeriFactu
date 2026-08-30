@@ -21,6 +21,7 @@ public sealed record ConsultarRegistrosAeatQuery(
     string? PageIssuerNif = null,
     string? PageInvoiceNumber = null,
     string? PageIssueDate = null,
+    bool FilterCurrentSystem = false,
     bool ShowIssuerName = false,
     bool ShowSystemInformation = false)
     : IRequest<Result<VeriFactuQueryResult>>;
