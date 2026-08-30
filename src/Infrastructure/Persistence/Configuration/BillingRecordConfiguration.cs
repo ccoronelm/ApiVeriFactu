@@ -18,6 +18,13 @@ public sealed class BillingRecordConfiguration : IEntityTypeConfiguration<Billin
         builder.Property(e => e.CreatedBy).HasMaxLength(256);
         builder.Property(e => e.LastModifiedDate);
         builder.Property(e => e.LastModifiedBy).HasMaxLength(256);
+        builder.Property(e => e.IsDeleted)
+            .IsRequired()
+            .HasDefaultValue(false);
+        builder.Property(e => e.DeletedAt);
+        builder.Property(e => e.DeletedBy).HasMaxLength(256);
+
+        builder.HasQueryFilter(e => !e.IsDeleted);
 
         builder.Property(e => e.IssuerName)
             .IsRequired()
