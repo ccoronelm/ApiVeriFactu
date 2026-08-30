@@ -208,7 +208,6 @@ namespace gesFactu.Infrastructure.Migrations
                         .HasColumnType("nvarchar(255)");
 
                     b.Property<Guid>("CorrelationId")
-                        .HasMaxLength(36)
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTime>("CreatedAt")
@@ -227,11 +226,21 @@ namespace gesFactu.Infrastructure.Migrations
                         .HasDefaultValue(false);
 
                     b.Property<string>("LastProcessingError")
-                        .HasColumnType("NVARCHAR(MAX)");
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("LockedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime?>("LockedUntil")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("NextAttemptAt")
+                        .HasColumnType("datetime2");
 
                     b.Property<string>("Payload")
                         .IsRequired()
-                        .HasColumnType("NVARCHAR(MAX)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<DateTime?>("ProcessedAt")
                         .HasColumnType("datetime2");
@@ -253,8 +262,12 @@ namespace gesFactu.Infrastructure.Migrations
                     b.HasIndex("IsProcessed")
                         .HasDatabaseName("IX_OutboxMessages_IsProcessed");
 
-                    b.HasIndex("IsProcessed", "ProcessingAttempts")
-                        .HasDatabaseName("IX_OutboxMessages_IsProcessed_Attempts");
+                    b.HasIndex("AggregateType", "AggregateId", "EventType")
+                        .IsUnique()
+                        .HasDatabaseName("UX_OutboxMessages_AggregateEvent");
+
+                    b.HasIndex("IsProcessed", "NextAttemptAt", "LockedUntil", "CreatedAt")
+                        .HasDatabaseName("IX_OutboxMessages_Claim");
 
                     b.ToTable("OutboxMessages", (string)null);
                 });
