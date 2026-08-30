@@ -7,6 +7,7 @@ using gesFactu.Infrastructure.Integrations.VeriFactu.Validation;
 using gesFactu.Infrastructure.Integrations.VeriFactu.XmlGeneration;
 using gesFactu.Infrastructure.Persistence;
 using gesFactu.Infrastructure.Persistence.Repositories;
+using gesFactu.Infrastructure.VeriFactu;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -82,6 +83,7 @@ public sealed class SubmitConcurrencyTests
             outboxStore,
             builder,
             validator,
+            new Sha256HashCalculator(),
             NullLogger<EnviarRegistroAEATCommandHandler>.Instance);
 
         return await handler.Handle(
