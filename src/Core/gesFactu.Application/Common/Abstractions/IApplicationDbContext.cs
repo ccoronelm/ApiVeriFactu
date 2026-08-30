@@ -15,6 +15,14 @@ public interface IApplicationDbContext
     Task<IApplicationTransaction> BeginSerializableTransactionAsync(
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Obtiene un bloqueo exclusivo, limitado a la transacción actual,
+    /// para serializar la generación de la cadena fiscal indicada.
+    /// </summary>
+    Task AcquireFiscalChainLockAsync(
+        string chainKey,
+        CancellationToken cancellationToken = default);
+
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }
 
