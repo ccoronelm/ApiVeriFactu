@@ -77,6 +77,9 @@ jobs:
       - name: Restore tests
         run: dotnet restore src/Infrastructure.Tests/gesFactu.Infrastructure.Tests.csproj
 
+      - name: Restore API tests
+        run: dotnet restore src/Api.Tests/gesFactu.Api.Tests.csproj
+
       - name: Restore AEAT E2E tests
         run: dotnet restore src/AeatE2ETests/gesFactu.AeatE2ETests.csproj
 
@@ -92,6 +95,16 @@ jobs:
 
       - name: Run infrastructure tests
         run: dotnet test src/Infrastructure.Tests/gesFactu.Infrastructure.Tests.csproj --configuration Release --no-restore --verbosity normal
+
+      - name: Run API security tests
+        run: dotnet test src/Api.Tests/gesFactu.Api.Tests.csproj --configuration Release --no-restore --verbosity normal
+
+      - name: Validate operational scripts
+        shell: bash
+        run: bash -n scripts/backup-postgres.sh scripts/restore-postgres.sh
+
+      - name: Build Linux production image
+        run: docker build --file Dockerfile --tag gesfactu-api:ci .
 
       - name: Verify AEAT E2E test project
         run: dotnet test src/AeatE2ETests/gesFactu.AeatE2ETests.csproj --configuration Release --no-restore --verbosity normal
