@@ -27,5 +27,7 @@ public sealed record BillingRecordDto(
     string? SubmissionCorrelationId,
     bool IsSubmitted,
     DateTime? CreatedAt,
-    string? CreatedBy
+    string? CreatedBy,
+    int? SubsanatesBillingRecordId,
+    bool IsSubsanacion
 );
