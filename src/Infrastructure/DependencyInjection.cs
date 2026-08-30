@@ -12,6 +12,7 @@ using gesFactu.Infrastructure.Integrations.VeriFactu.Validation;
 using gesFactu.Infrastructure.Integrations.VeriFactu.XmlGeneration;
 using gesFactu.Infrastructure.Integrations.QRCode;
 using gesFactu.Infrastructure.Outbox;
+using gesFactu.Infrastructure.Idempotency;
 
 namespace gesFactu.Infrastructure;
 
@@ -46,6 +47,7 @@ public static class DependencyInjection
         services.AddScoped<IRegistroAltaXmlBuilder, RegistroAltaXmlBuilderAdapter>();
         services.AddScoped<IRegistroAnulacionXmlBuilder, RegistroAnulacionXmlBuilderAdapter>();
         services.AddHostedService<OutboxProcessorService>();
+        services.AddHostedService<IdempotencyCleanupService>();
 
         return services;
     }
