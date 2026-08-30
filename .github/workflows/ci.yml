@@ -51,6 +51,9 @@ jobs:
       - name: Restore tests
         run: dotnet restore src/Infrastructure.Tests/gesFactu.Infrastructure.Tests.csproj
 
+      - name: Restore AEAT E2E tests
+        run: dotnet restore src/AeatE2ETests/gesFactu.AeatE2ETests.csproj
+
       - name: Build application
         run: dotnet build gesFactuSolucion.sln --configuration Release --no-restore
 
@@ -63,3 +66,6 @@ jobs:
 
       - name: Run infrastructure tests
         run: dotnet test src/Infrastructure.Tests/gesFactu.Infrastructure.Tests.csproj --configuration Release --no-restore --verbosity normal
+
+      - name: Verify AEAT E2E test project
+        run: dotnet test src/AeatE2ETests/gesFactu.AeatE2ETests.csproj --configuration Release --no-restore --verbosity normal
