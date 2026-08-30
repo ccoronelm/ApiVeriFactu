@@ -48,7 +48,17 @@ public class BillingRecord : BaseDomainModel
     public string? ComputedHash { get; set; }
 
     public bool IsSubmitted { get; set; }
+
+    /// <summary>
+    /// Correlación local de la remisión asíncrona. No es un identificador AEAT.
+    /// </summary>
+    public Guid? SubmissionCorrelationId { get; set; }
+
+    /// <summary>
+    /// CSV real devuelto por AEAT cuando el envío no es rechazado.
+    /// </summary>
     public string? AeatSubmissionId { get; set; }
+
     public string Status { get; set; } = "Pendiente";
 
     private BillingRecord() { }
@@ -117,13 +127,23 @@ public class BillingRecord : BaseDomainModel
         };
     }
 
+    public void MarkAsQueued(Guid correlationId)
+    {
+        if (correlationId == Guid.Empty)
+            throw new InvalidOperationException("CorrelationId no puede estar vacío");
+
+        IsSubmitted = true;
+        SubmissionCorrelationId = correlationId;
+        Status = "PendienteEnvio";
+    }
+
     public void MarkAsSubmitted(string aeatSubmissionId)
     {
         if (string.IsNullOrWhiteSpace(aeatSubmissionId))
-            throw new InvalidOperationException("El ID de envío de AEAT es requerido");
+            throw new InvalidOperationException("El CSV/ID de envío de AEAT es requerido");
 
         IsSubmitted = true;
-        AeatSubmissionId = aeatSubmissionId;
+        AeatSubmissionId = aeatSubmissionId.Trim();
         Status = "Enviado";
     }
 
