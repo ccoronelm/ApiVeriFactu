@@ -1,21 +1,28 @@
 namespace gesFactu.Application.Common.Abstractions;
+
 /// <summary>
-/// Puerto que define la interfaz de persistencia.
-/// Esta abstracción permite que Application orqueste casos de uso sin depender de EF Core.
-/// La implementación estará en Infrastructure.
-/// 
-/// Nota: Se proporciona un método para agregar mensajes de outbox de forma atómica.
+/// Puerto de persistencia de la aplicaciÃ³n.
 /// </summary>
 public interface IApplicationDbContext
 {
-    /// <summary>
-    /// Agrega un mensaje de outbox a la transacción actual.
-    /// Se persiste junto con otros cambios en SaveChangesAsync.
-    /// </summary>
     void AddOutboxMessage(object message);
 
-    Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Inicia una transacciÃ³n SERIALIZABLE.
+    /// Se usa para operaciones cuya secuencia fiscal debe ser atÃ³mica
+    /// (seleccionar Ãºltimo registro + crear y encadenar el siguiente).
+    /// </summary>
+    Task<IApplicationTransaction> BeginSerializableTransactionAsync(
+        CancellationToken cancellationToken = default);
 
-    // DbSets se agregarán aquí según sea necesario
-    // public DbSet<BillingRecord> BillingRecords { get; }
+    Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
+}
+
+/// <summary>
+/// AbstracciÃ³n de transacciÃ³n para no exponer EF Core a Application.
+/// </summary>
+public interface IApplicationTransaction : IAsyncDisposable
+{
+    Task CommitAsync(CancellationToken cancellationToken = default);
+    Task RollbackAsync(CancellationToken cancellationToken = default);
 }
