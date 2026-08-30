@@ -10,18 +10,18 @@ public sealed class ConsultarRegistrosAeatQueryHandler
     : IRequestHandler<ConsultarRegistrosAeatQuery, Result<VeriFactuQueryResult>>
 {
     private readonly IVeriFactuGateway _gateway;
-    private readonly IVeriFactuTaxpayerContext _taxpayer;
+    private readonly IVeriFactuTaxpayerRegistry _taxpayers;
     private readonly IVeriFactuSystemContext _system;
     private readonly ILogger<ConsultarRegistrosAeatQueryHandler> _logger;
 
     public ConsultarRegistrosAeatQueryHandler(
         IVeriFactuGateway gateway,
-        IVeriFactuTaxpayerContext taxpayer,
+        IVeriFactuTaxpayerRegistry taxpayers,
         IVeriFactuSystemContext system,
         ILogger<ConsultarRegistrosAeatQueryHandler> logger)
     {
         _gateway = gateway;
-        _taxpayer = taxpayer;
+        _taxpayers = taxpayers;
         _system = system;
         _logger = logger;
     }
@@ -106,10 +106,22 @@ public sealed class ConsultarRegistrosAeatQueryHandler
         if (pagination.Error is not null)
             return pagination.Error;
 
+        VeriFactuTaxpayerIdentity taxpayer;
+        try
+        {
+            taxpayer = string.IsNullOrWhiteSpace(query.Taxpayer)
+                ? _taxpayers.ResolveDefault()
+                : _taxpayers.Resolve(query.Taxpayer);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Validation(nameof(query.Taxpayer), ex.Message);
+        }
+
         var request = new VeriFactuQueryRequest
         {
-            TaxpayerNif = _taxpayer.Nif,
-            TaxpayerName = _taxpayer.Name,
+            TaxpayerNif = taxpayer.Nif,
+            TaxpayerName = taxpayer.Name,
             FiscalYear = query.FiscalYear,
             Period = query.Period,
             InvoiceNumber = NullIfWhiteSpace(query.InvoiceNumber),
@@ -128,7 +140,8 @@ public sealed class ConsultarRegistrosAeatQueryHandler
                     SystemName = _system.SystemName,
                     SystemId = _system.SystemId,
                     Version = _system.Version,
-                    InstallationNumber = _system.InstallationNumber
+                    InstallationNumber =
+                        _system.GetInstallationNumber(taxpayer.Nif)
                 }
                 : null,
             ShowIssuerName = query.ShowIssuerName,
