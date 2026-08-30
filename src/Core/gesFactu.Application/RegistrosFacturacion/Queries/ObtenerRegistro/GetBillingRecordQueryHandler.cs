@@ -58,6 +58,7 @@ public sealed class GetBillingRecordQueryHandler
                 record.CreateDate,
                 record.CreatedBy,
                 record.RecordType,
+                record.InvoiceType,
                 record.SubsanatesBillingRecordId,
                 record.SubsanatesBillingRecordId.HasValue,
                 record.CancelsBillingRecordId,

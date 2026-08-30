@@ -29,6 +29,7 @@ public sealed record BillingRecordDto(
     DateTime? CreatedAt,
     string? CreatedBy,
     string RecordType,
+    string InvoiceType,
     int? SubsanatesBillingRecordId,
     bool IsSubsanacion,
     int? CancelsBillingRecordId,

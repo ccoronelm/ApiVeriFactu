@@ -127,6 +127,61 @@ public sealed class RegistroAltaXmlBuilderAdapterTests
     }
 
     [Fact]
+    public async Task BuildRegFactuXml_F2_SinDestinatario_ValidaXsdOficial()
+    {
+        var xmlBuilder = new RegistroAltaXmlBuilderAdapter(
+            Options.Create(CreateOptions()));
+
+        var data = CreateRegistroAltaData(
+            "000000F2",
+            "EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE");
+
+        data = new RegistroAltaData
+        {
+            IssuerNif = data.IssuerNif,
+            IssuerName = data.IssuerName,
+            InvoiceSeries = data.InvoiceSeries,
+            InvoiceNumber = data.InvoiceNumber,
+            IssueDate = data.IssueDate,
+            RecipientNif = string.Empty,
+            RecipientName = string.Empty,
+            IsSubsanacion = false,
+            TipoFactura = "F2",
+            Description = data.Description,
+            CuotaTotal = data.CuotaTotal,
+            ImporteTotal = data.ImporteTotal,
+            Detalles = data.Detalles,
+            ComputedHash = data.ComputedHash,
+            PreviousRecordHash = data.PreviousRecordHash,
+            PreviousIssueDate = data.PreviousIssueDate,
+            PreviousIssuerNif = data.PreviousIssuerNif,
+            PreviousInvoiceSeries = data.PreviousInvoiceSeries,
+            PreviousInvoiceNumber = data.PreviousInvoiceNumber,
+            FechaHoraHusoGenRegistro = data.FechaHoraHusoGenRegistro
+        };
+
+        var xml = xmlBuilder.BuildRegFactuXml(data);
+
+        var nsSf = (System.Xml.Linq.XNamespace)
+            "https://www2.agenciatributaria.gob.es/static_files/common/internet/dep/aplicaciones/es/aeat/tike/cont/ws/SuministroInformacion.xsd";
+
+        var doc = System.Xml.Linq.XDocument.Parse(xml);
+
+        Assert.Equal(
+            "F2",
+            doc.Descendants(nsSf + "TipoFactura").Single().Value);
+        Assert.Empty(doc.Descendants(nsSf + "Destinatarios"));
+
+        var result = await CreateValidator().ValidateAsync(
+            xml,
+            VeriFactuXmlSchemaType.BillingRecord);
+
+        Assert.True(
+            result.IsValid,
+            string.Join(" | ", result.Errors.Select(e => e.Message)));
+    }
+
+    [Fact]
     public async Task BuildRegFactuXml_Subsanacion_IncluyeIndicadorYValidaXsd()
     {
         var xmlBuilder = new RegistroAltaXmlBuilderAdapter(

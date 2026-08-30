@@ -54,7 +54,7 @@ public sealed class CreateBillingRecordSubsanationCommandHandler
                 "La subsanación habitual requiere que el registro exista en AEAT con estado Aceptado o AceptadoConErrores.");
         }
 
-        var recipientNifText = command.RecipientNif ?? source.RecipientNif;
+        var recipientNifText = (command.RecipientNif ?? source.RecipientNif).Trim();
         var recipientName = (command.RecipientName ?? source.RecipientName).Trim();
         var description = (command.Description ?? source.Description).Trim();
         var totalAmountValue = command.TotalAmount ?? source.TotalAmount;
@@ -65,16 +65,30 @@ public sealed class CreateBillingRecordSubsanationCommandHandler
             return Validation(nameof(source.IssuerNif), issuerError.Message);
         var issuerNif = ((ValueObjectResult<TaxpayerNif>.SuccessWithValue)issuerNifResult).Value;
 
-        var recipientNifResult = TaxpayerNif.Create(recipientNifText);
-        if (recipientNifResult is ValueObjectResult<TaxpayerNif>.ValidationError recipientError)
-            return Validation(nameof(command.RecipientNif), recipientError.Message);
-        var recipientNif = ((ValueObjectResult<TaxpayerNif>.SuccessWithValue)recipientNifResult).Value;
+        var hasRecipientNif = !string.IsNullOrWhiteSpace(recipientNifText);
+        var hasRecipientName = !string.IsNullOrWhiteSpace(recipientName);
 
-        if (string.Equals(issuerNif.Value, recipientNif.Value, StringComparison.OrdinalIgnoreCase))
-            return Validation(nameof(command.RecipientNif), "El NIF del destinatario debe ser distinto del NIF del obligado emisor.");
+        if (source.InvoiceType == "F1" && (!hasRecipientNif || !hasRecipientName))
+            return Validation(nameof(command.RecipientNif), "F1 requiere destinatario.");
 
-        if (string.IsNullOrWhiteSpace(recipientName) || recipientName.Length > 120)
-            return Validation(nameof(command.RecipientName), "El nombre del destinatario es obligatorio y no puede superar 120 caracteres.");
+        if (hasRecipientNif != hasRecipientName)
+            return Validation(nameof(command.RecipientNif), "NIF y nombre del destinatario deben informarse juntos.");
+
+        if (hasRecipientNif)
+        {
+            var recipientNifResult = TaxpayerNif.Create(recipientNifText);
+            if (recipientNifResult is ValueObjectResult<TaxpayerNif>.ValidationError recipientError)
+                return Validation(nameof(command.RecipientNif), recipientError.Message);
+
+            recipientNifText =
+                ((ValueObjectResult<TaxpayerNif>.SuccessWithValue)recipientNifResult).Value.Value;
+
+            if (string.Equals(issuerNif.Value, recipientNifText, StringComparison.OrdinalIgnoreCase))
+                return Validation(nameof(command.RecipientNif), "El NIF del destinatario debe ser distinto del NIF del obligado emisor.");
+
+            if (recipientName.Length > 120)
+                return Validation(nameof(command.RecipientName), "El nombre del destinatario no puede superar 120 caracteres.");
+        }
 
         if (string.IsNullOrWhiteSpace(description) || description.Length > 500)
             return Validation(nameof(command.Description), "La descripción es obligatoria y no puede superar 500 caracteres.");
@@ -153,14 +167,15 @@ public sealed class CreateBillingRecordSubsanationCommandHandler
             var subsanation = BillingRecord.Create(
                 identifier,
                 source.IssuerName,
-                recipientNif.Value,
+                recipientNifText,
                 recipientName,
                 description,
                 totalAmount,
                 totalTaxAmount,
                 previousRecord.Id,
                 previousRecord.ComputedHash,
-                registerTimestamp);
+                registerTimestamp,
+                source.InvoiceType);
 
             subsanation.SubsanatesBillingRecordId = source.Id;
 
@@ -171,7 +186,7 @@ public sealed class CreateBillingRecordSubsanationCommandHandler
                 InvoiceSeries = subsanation.InvoiceSeries,
                 InvoiceNumber = subsanation.InvoiceNumber,
                 IssueDate = subsanation.IssueDate.ToString("dd-MM-yyyy", CultureInfo.InvariantCulture),
-                InvoiceType = "F1",
+                InvoiceType = source.InvoiceType,
                 TotalAmount = subsanation.TotalAmount,
                 TotalTaxAmount = subsanation.TotalTaxAmount,
                 RegisterTimestamp = subsanation.RegisterTimestamp

@@ -35,6 +35,7 @@ namespace gesFactu.Infrastructure.Migrations
                     b.Property<string>("FiscalInvoiceNumber").IsRequired().HasMaxLength(60).HasColumnType("character varying(60)");
                     b.Property<string>("InvoiceNumber").IsRequired().HasMaxLength(60).HasColumnType("character varying(60)");
                     b.Property<string>("InvoiceSeries").IsRequired().HasMaxLength(60).HasColumnType("character varying(60)");
+                    b.Property<string>("InvoiceType").IsRequired().ValueGeneratedOnAdd().HasMaxLength(2).HasColumnType("character varying(2)").HasDefaultValue("F1");
                     b.Property<bool>("IsSubmitted").ValueGeneratedOnAdd().HasColumnType("boolean").HasDefaultValue(false);
                     b.Property<DateOnly>("IssueDate").HasColumnType("date");
                     b.Property<string>("IssuerName").IsRequired().HasMaxLength(120).HasColumnType("character varying(120)");

@@ -20,6 +20,12 @@ public class BillingRecord : BaseDomainModel
     /// </summary>
     public string RecordType { get; set; } = AltaRecordType;
 
+    /// <summary>
+    /// Tipo fiscal AEAT del RegistroAlta: F1, F2, R1...R5, F3.
+    /// Para RegistroAnulacion conserva el tipo de la factura anulada.
+    /// </summary>
+    public string InvoiceType { get; set; } = "F1";
+
     public string IssuerNif { get; set; } = string.Empty;
     public string InvoiceSeries { get; set; } = string.Empty;
     public string InvoiceNumber { get; set; } = string.Empty;
@@ -102,7 +108,8 @@ public class BillingRecord : BaseDomainModel
         Money totalTaxAmount,
         int? previousBillingRecordId = null,
         string? previousRecordHash = null,
-        string? registerTimestamp = null)
+        string? registerTimestamp = null,
+        string invoiceType = "F1")
     {
         ArgumentNullException.ThrowIfNull(invoiceIdentifier);
 
@@ -112,26 +119,48 @@ public class BillingRecord : BaseDomainModel
         if (issuerName.Trim().Length > 120)
             throw new InvalidOperationException("El nombre del emisor no puede superar 120 caracteres");
 
-        if (string.IsNullOrWhiteSpace(recipientNif))
-            throw new InvalidOperationException("El NIF del destinatario es requerido para F1");
+        var normalizedInvoiceType = invoiceType?.Trim().ToUpperInvariant() ?? string.Empty;
 
-        if (recipientNif.Trim().Length != 9)
-            throw new InvalidOperationException("El NIF del destinatario debe tener exactamente 9 caracteres");
-
-        if (string.Equals(
-                invoiceIdentifier.IssuerNif.Value,
-                recipientNif.Trim(),
-                StringComparison.OrdinalIgnoreCase))
+        if (normalizedInvoiceType is not ("F1" or "F2"))
         {
             throw new InvalidOperationException(
-                "El NIF del destinatario debe ser distinto del NIF del obligado emisor");
+                "BillingRecord.Create solo admite F1 o F2 en este punto del desarrollo.");
         }
 
-        if (string.IsNullOrWhiteSpace(recipientName))
-            throw new InvalidOperationException("El nombre o razón social del destinatario es requerido para F1");
+        var hasRecipientNif = !string.IsNullOrWhiteSpace(recipientNif);
+        var hasRecipientName = !string.IsNullOrWhiteSpace(recipientName);
 
-        if (recipientName.Trim().Length > 120)
-            throw new InvalidOperationException("El nombre o razón social del destinatario no puede superar 120 caracteres");
+        if (normalizedInvoiceType == "F1" && (!hasRecipientNif || !hasRecipientName))
+        {
+            throw new InvalidOperationException(
+                "F1 requiere NIF y nombre o razón social del destinatario.");
+        }
+
+        if (hasRecipientNif != hasRecipientName)
+        {
+            throw new InvalidOperationException(
+                "NIF y nombre del destinatario deben informarse juntos.");
+        }
+
+        if (hasRecipientNif)
+        {
+            if (recipientNif.Trim().Length != 9)
+                throw new InvalidOperationException(
+                    "El NIF del destinatario debe tener exactamente 9 caracteres");
+
+            if (string.Equals(
+                    invoiceIdentifier.IssuerNif.Value,
+                    recipientNif.Trim(),
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException(
+                    "El NIF del destinatario debe ser distinto del NIF del obligado emisor");
+            }
+
+            if (recipientName.Trim().Length > 120)
+                throw new InvalidOperationException(
+                    "El nombre o razón social del destinatario no puede superar 120 caracteres");
+        }
 
         if (string.IsNullOrWhiteSpace(description))
             throw new InvalidOperationException("La descripción de la operación es requerida");
@@ -174,13 +203,18 @@ public class BillingRecord : BaseDomainModel
             FiscalInvoiceNumber = fiscalInvoiceNumber,
             IssueDate = invoiceIdentifier.IssueDate,
             IssuerName = issuerName.Trim(),
-            RecipientNif = recipientNif.Trim().ToUpperInvariant(),
-            RecipientName = recipientName.Trim(),
+            RecipientNif = hasRecipientNif
+                ? recipientNif.Trim().ToUpperInvariant()
+                : string.Empty,
+            RecipientName = hasRecipientName
+                ? recipientName.Trim()
+                : string.Empty,
             Description = description.Trim(),
             TotalAmount = totalAmount.Amount,
             TotalTaxAmount = totalTaxAmount.Amount,
             RegisterTimestamp = timestamp,
             RecordType = AltaRecordType,
+            InvoiceType = normalizedInvoiceType,
             PreviousBillingRecordId = previousBillingRecordId,
             PreviousRecordHash = previousRecordHash,
             Status = "Pendiente",

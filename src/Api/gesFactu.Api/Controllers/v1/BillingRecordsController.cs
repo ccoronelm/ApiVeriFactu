@@ -68,7 +68,8 @@ public class BillingRecordsController : ControllerBase
             request.RecipientName,
             request.Description,
             request.TotalAmount,
-            request.TotalTaxAmount);
+            request.TotalTaxAmount,
+            request.InvoiceType);
 
         var result = await _mediator.Send(command, cancellationToken);
 
@@ -461,14 +462,19 @@ public sealed record CreateBillingRecordRequest
     public required string IssuerName { get; init; }
 
     /// <summary>
-    /// NIF del destinatario. Obligatorio para F1.
+    /// NIF del destinatario. Obligatorio para F1; opcional para F2.
     /// </summary>
-    public required string RecipientNif { get; init; }
+    public string? RecipientNif { get; init; }
 
     /// <summary>
-    /// Nombre o razón social del destinatario. Obligatorio para F1.
+    /// Nombre o razón social del destinatario. Obligatorio para F1; opcional para F2.
     /// </summary>
-    public required string RecipientName { get; init; }
+    public string? RecipientName { get; init; }
+
+    /// <summary>
+    /// Tipo de factura AEAT. Valores soportados actualmente: F1 y F2.
+    /// </summary>
+    public string InvoiceType { get; init; } = "F1";
 
     /// <summary>
     /// Descripción de la operación/concepto

@@ -44,6 +44,11 @@ public sealed class BillingRecordConfiguration : IEntityTypeConfiguration<Billin
             .HasMaxLength(16)
             .HasDefaultValue(BillingRecord.AltaRecordType);
 
+        builder.Property(e => e.InvoiceType)
+            .IsRequired()
+            .HasMaxLength(2)
+            .HasDefaultValue("F1");
+
         builder.Property(e => e.SubsanatesBillingRecordId);
         builder.Property(e => e.CancelsBillingRecordId);
 
