@@ -31,11 +31,14 @@ namespace gesFactu.Infrastructure.Migrations
                     b.Property<string>("ComputedHash").IsRequired().HasMaxLength(64).HasColumnType("character varying(64)");
                     b.Property<DateTime?>("CreateDate").ValueGeneratedOnAdd().HasColumnType("timestamp with time zone").HasDefaultValueSql("CURRENT_TIMESTAMP");
                     b.Property<string>("CreatedBy").HasMaxLength(256).HasColumnType("character varying(256)");
+                    b.Property<DateTime?>("DeletedAt").HasColumnType("timestamp with time zone");
+                    b.Property<string>("DeletedBy").HasMaxLength(256).HasColumnType("character varying(256)");
                     b.Property<string>("Description").IsRequired().HasMaxLength(500).HasColumnType("character varying(500)");
                     b.Property<string>("FiscalInvoiceNumber").IsRequired().HasMaxLength(60).HasColumnType("character varying(60)");
                     b.Property<string>("InvoiceNumber").IsRequired().HasMaxLength(60).HasColumnType("character varying(60)");
                     b.Property<string>("InvoiceSeries").IsRequired().HasMaxLength(60).HasColumnType("character varying(60)");
                     b.Property<string>("InvoiceType").IsRequired().ValueGeneratedOnAdd().HasMaxLength(2).HasColumnType("character varying(2)").HasDefaultValue("F1");
+                    b.Property<bool>("IsDeleted").ValueGeneratedOnAdd().HasColumnType("boolean").HasDefaultValue(false);
                     b.Property<bool>("IsSubmitted").ValueGeneratedOnAdd().HasColumnType("boolean").HasDefaultValue(false);
                     b.Property<DateOnly>("IssueDate").HasColumnType("date");
                     b.Property<string>("IssuerName").IsRequired().HasMaxLength(120).HasColumnType("character varying(120)");
@@ -73,13 +76,16 @@ namespace gesFactu.Infrastructure.Migrations
                     b.Property<int>("Id").ValueGeneratedOnAdd().HasColumnType("integer");
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
                     b.Property<int>("BillingRecordId").HasColumnType("integer");
-                    b.Property<DateTime?>("CreateDate").HasColumnType("timestamp with time zone");
-                    b.Property<string>("CreatedBy").HasColumnType("text");
+                    b.Property<DateTime?>("CreateDate").ValueGeneratedOnAdd().HasColumnType("timestamp with time zone").HasDefaultValueSql("CURRENT_TIMESTAMP");
+                    b.Property<string>("CreatedBy").HasMaxLength(256).HasColumnType("character varying(256)");
+                    b.Property<DateTime?>("DeletedAt").HasColumnType("timestamp with time zone");
+                    b.Property<string>("DeletedBy").HasMaxLength(256).HasColumnType("character varying(256)");
                     b.Property<decimal?>("EquivalenceSurchargeAmount").HasPrecision(18, 2).HasColumnType("numeric(18,2)");
                     b.Property<decimal?>("EquivalenceSurchargeRate").HasPrecision(5, 2).HasColumnType("numeric(5,2)");
                     b.Property<string>("ExemptionCause").HasMaxLength(2).HasColumnType("character varying(2)");
                     b.Property<DateTime?>("LastModifiedDate").HasColumnType("timestamp with time zone");
-                    b.Property<string>("LastModifiedBy").HasColumnType("text");
+                    b.Property<string>("LastModifiedBy").HasMaxLength(256).HasColumnType("character varying(256)");
+                    b.Property<bool>("IsDeleted").ValueGeneratedOnAdd().HasColumnType("boolean").HasDefaultValue(false);
                     b.Property<string>("OperationQualification").HasMaxLength(2).HasColumnType("character varying(2)");
                     b.Property<string>("RegimeCode").HasMaxLength(2).HasColumnType("character varying(2)");
                     b.Property<decimal?>("TaxAmount").HasPrecision(18, 2).HasColumnType("numeric(18,2)");
@@ -89,6 +95,44 @@ namespace gesFactu.Infrastructure.Migrations
                     b.HasKey("Id");
                     b.HasIndex("BillingRecordId", "Id").HasDatabaseName("IX_BillingTaxDetails_Record_Order");
                     b.ToTable("BillingTaxDetails", (string)null);
+                });
+
+            modelBuilder.Entity("gesFactu.Domain.Entities.AuditLog", b =>
+                {
+                    b.Property<Guid>("Id").HasColumnType("uuid");
+                    b.Property<string>("Action").IsRequired().HasMaxLength(32).HasColumnType("character varying(32)");
+                    b.Property<string>("Actor").IsRequired().HasMaxLength(256).HasColumnType("character varying(256)");
+                    b.Property<string>("CorrelationId").HasMaxLength(128).HasColumnType("character varying(128)");
+                    b.Property<string>("EntityId").IsRequired().HasMaxLength(200).HasColumnType("character varying(200)");
+                    b.Property<string>("EntityName").IsRequired().HasMaxLength(200).HasColumnType("character varying(200)");
+                    b.Property<string>("NewValues").HasColumnType("jsonb");
+                    b.Property<DateTime>("OccurredAtUtc").HasColumnType("timestamp with time zone");
+                    b.Property<string>("OldValues").HasColumnType("jsonb");
+                    b.HasKey("Id");
+                    b.HasIndex("CorrelationId").HasDatabaseName("IX_AuditLogs_CorrelationId");
+                    b.HasIndex("EntityName", "EntityId", "OccurredAtUtc").HasDatabaseName("IX_AuditLogs_Entity_Time");
+                    b.ToTable("AuditLogs", (string)null);
+                });
+
+            modelBuilder.Entity("gesFactu.Domain.Entities.IdempotencyRecord", b =>
+                {
+                    b.Property<Guid>("Id").HasColumnType("uuid");
+                    b.Property<DateTime?>("CompletedAtUtc").HasColumnType("timestamp with time zone");
+                    b.Property<DateTime>("CreatedAtUtc").HasColumnType("timestamp with time zone");
+                    b.Property<DateTime>("ExpiresAtUtc").HasColumnType("timestamp with time zone");
+                    b.Property<string>("Key").IsRequired().HasMaxLength(200).HasColumnType("character varying(200)");
+                    b.Property<string>("Method").IsRequired().HasMaxLength(16).HasColumnType("character varying(16)");
+                    b.Property<string>("Path").IsRequired().HasMaxLength(500).HasColumnType("character varying(500)");
+                    b.Property<string>("RequestHash").IsRequired().HasMaxLength(64).HasColumnType("character varying(64)");
+                    b.Property<string>("ResponseBody").HasColumnType("text");
+                    b.Property<string>("ResponseContentType").HasMaxLength(200).HasColumnType("character varying(200)");
+                    b.Property<string>("ResponseLocation").HasMaxLength(1000).HasColumnType("character varying(1000)");
+                    b.Property<int?>("ResponseStatusCode").HasColumnType("integer");
+                    b.Property<string>("Status").IsRequired().HasMaxLength(16).HasColumnType("character varying(16)");
+                    b.HasKey("Id");
+                    b.HasIndex("ExpiresAtUtc").HasDatabaseName("IX_IdempotencyRecords_ExpiresAt");
+                    b.HasIndex("Key", "Method", "Path").IsUnique().HasDatabaseName("UX_IdempotencyRecords_Key_Method_Path");
+                    b.ToTable("IdempotencyRecords", (string)null);
                 });
 
             modelBuilder.Entity("gesFactu.Domain.Entities.DeadLetterMessage", b =>
@@ -141,7 +185,7 @@ namespace gesFactu.Infrastructure.Migrations
                     b.HasOne("gesFactu.Domain.Entities.BillingRecord", "BillingRecord")
                         .WithMany("TaxDetails")
                         .HasForeignKey("BillingRecordId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                     b.Navigation("BillingRecord");
                 });
@@ -173,7 +217,7 @@ namespace gesFactu.Infrastructure.Migrations
                     b.HasOne("gesFactu.Domain.Entities.BillingRecord", "BillingRecord")
                         .WithMany("SubmissionAttempts")
                         .HasForeignKey("BillingRecordId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                     b.Navigation("BillingRecord");
                 });
