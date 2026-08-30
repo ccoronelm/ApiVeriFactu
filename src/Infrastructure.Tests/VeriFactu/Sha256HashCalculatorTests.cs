@@ -60,6 +60,29 @@ public sealed class Sha256HashCalculatorTests
     }
 
     [Fact]
+    public void CalculateChainHash_WholeAmounts_UsesTwoDecimalsLikeXml()
+    {
+        var input = new BillingRecordHashInput
+        {
+            PreviousHash = string.Empty,
+            IssuerNif = "89890001K",
+            InvoiceSeries = "VF/",
+            InvoiceNumber = "000001",
+            IssueDate = "30-08-2026",
+            InvoiceType = "F1",
+            TotalTaxAmount = 21m,
+            TotalAmount = 121m,
+            RegisterTimestamp = "2026-08-30T12:32:26+02:00"
+        };
+
+        var hash = _calculator.CalculateChainHash(input);
+
+        Assert.Equal(
+            "C8318DAF719A9A7E6508D0181111E88890DECA414E6175CA9B422006CB1783D7",
+            hash);
+    }
+
+    [Fact]
     public void CalculateSha256_WithKnownValue_ReturnsUppercaseHex()
     {
         var hash = _calculator.CalculateSha256("hello world");
