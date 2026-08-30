@@ -5,7 +5,7 @@ using gesFactu.Domain.Entities;
 namespace gesFactu.Infrastructure.Persistence;
 
 /// <summary>
-/// Implementaci�n de IDeadLetterStore usando EF Core.
+/// Implementación de IDeadLetterStore usando EF Core.
 /// Gestiona mensajes que han agotado sus reintentos.
 /// </summary>
 public class DeadLetterStore : IDeadLetterStore
@@ -27,6 +27,23 @@ public class DeadLetterStore : IDeadLetterStore
         DateTime createdAt,
         CancellationToken cancellationToken)
     {
+        var existing = await _dbContext.DeadLetterMessages
+            .FirstOrDefaultAsync(
+                x => x.CorrelationId == correlationId,
+                cancellationToken);
+
+        if (existing is not null)
+        {
+            // Idempotencia: una recuperación tras caída del worker no debe duplicar DLQ.
+            existing.FailureReason = failureReason;
+            existing.LastErrorResponse = lastErrorResponse;
+            existing.ProcessingAttempts = Math.Max(
+                existing.ProcessingAttempts,
+                processingAttempts);
+            await _dbContext.SaveChangesAsync(cancellationToken);
+            return;
+        }
+
         var dlqMessage = new DeadLetterMessage
         {
             Id = Guid.NewGuid(),
