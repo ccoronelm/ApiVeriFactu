@@ -1,131 +1,67 @@
-# C醠culo de Hash/Huella en VERI*FACTU
+# C谩lculo de Hash/Huella en VERI*FACTU
 
 ## Referencia oficial
 
 - Documento: `/VERIFACTU/Veri-Factu_especificaciones_huella_hash_registros.pdf`
-- Tipo de huella: 01 (SHA256)
-- Algoritmo: SHA256
-- Formato: Hexadecimal en may鷖culas (64 caracteres)
+- Tipo de huella: `01` (SHA-256)
+- Codificaci贸n de entrada: UTF-8
+- Salida: hexadecimal en may煤sculas, 64 caracteres
 
-## Implementaci髇
+## Cadena de entrada para RegistroAlta
 
-**Interfaz:** `gesFactu.Application.Common.Abstractions.IHashCalculator`
-**Implementaci髇:** `gesFactu.Infrastructure.VeriFactu.Sha256HashCalculator`
+La huella se calcula sobre esta cadena, en este orden exacto:
 
-## Propiedades del hash
-
-- **Determinista**: Mismos datos siempre producen el mismo hash
-- **Culture-independent**: Usa `CultureInfo.InvariantCulture` para formatos
-- **Encadenamiento**: Incorpora hash anterior para cadena de registros
-- **Validaci髇**: Integral para cumplimiento VERI*FACTU
-
-## Campos incluidos en el hash (en orden)
-
-1. Hash del registro anterior (cadena vac韆 si es primero)
-2. NIF/CIF del emisor (normalizado a may鷖culas)
-3. Serie de factura
-4. N鷐ero de factura
-5. Fecha de expedici髇 (formato: dd-MM-yyyy)
-6. Tipo de factura (ej: "F1", "R3")
-7. Importe total (formato: 0.00 con InvariantCulture)
-8. Cuota total de impuesto (formato: 0.00 con InvariantCulture)
-9. Descripci髇 de la operaci髇
-10. Timestamp del registro (ISO 8601 con zona horaria)
-11. Identificador del sistema inform醫ico
-
-**Separador entre campos:** Pipe `|`
-
-## Ejemplo de c醠culo
-
-### Datos de entrada
-
-```json
-{
-  "previousHash": "",
-  "issuerNif": "12345678A",
-  "invoiceSeries": "A",
-  "invoiceNumber": "001",
-  "issueDate": "03-02-2025",
-  "invoiceType": "F1",
-  "totalAmount": 100.00,
-  "totalTaxAmount": 21.00,
-  "description": "Servicios",
-  "registerTimestamp": "2025-02-03T14:30:00+01:00",
-  "softwareId": "gesFactu-1.0"
-}
+```text
+IDEmisorFactura=...&NumSerieFactura=...&FechaExpedicionFactura=...&TipoFactura=...&CuotaTotal=...&ImporteTotal=...&Huella=...&FechaHoraHusoGenRegistro=...
 ```
 
-### String de entrada para hash
+No se usa un formato separado por pipes ni se incluyen la descripci贸n o el identificador del sistema inform谩tico en esta cadena.
 
-```
-|12345678A|A|001|03-02-2025|F1|100.00|21.00|Servicios|2025-02-03T14:30:00+01:00|gesFactu-1.0
+Para el primer registro, `Huella=` se deja vac铆o. Para los siguientes registros contiene la huella del registro anterior.
+
+## Formato de los valores
+
+Los valores usados para calcular la huella deben coincidir con los que se env铆an en el XML:
+
+- `IDEmisorFactura`: NIF del emisor.
+- `NumSerieFactura`: concatenaci贸n de serie + n煤mero.
+- `FechaExpedicionFactura`: `dd-MM-yyyy`.
+- `TipoFactura`: por ejemplo `F1`.
+- `CuotaTotal`: dos decimales con punto, por ejemplo `21.00`.
+- `ImporteTotal`: dos decimales con punto, por ejemplo `121.00`.
+- `Huella`: huella anterior o cadena vac铆a para el primer registro.
+- `FechaHoraHusoGenRegistro`: exactamente el timestamp persistido y enviado en el XML, incluyendo el huso horario.
+
+Es importante conservar los dos decimales en importes enteros. AEAT calcula la huella sobre la representaci贸n textual recibida; `21` y `21.00` no producen el mismo SHA-256.
+
+## Ejemplo
+
+```text
+IDEmisorFactura=89890001K&NumSerieFactura=VF/000001&FechaExpedicionFactura=30-08-2026&TipoFactura=F1&CuotaTotal=21.00&ImporteTotal=121.00&Huella=&FechaHoraHusoGenRegistro=2026-08-30T12:32:26+02:00
 ```
 
-### Hash resultante
+Huella SHA-256:
 
+```text
+C8318DAF719A9A7E6508D0181111E88890DECA414E6175CA9B422006CB1783D7
 ```
-FF954378B64ED331A9B2366AD317D86E9DEC1716B12DD0ACCB172A6DC4C105AA
-```
+
+## Implementaci贸n
+
+- Interfaz: `gesFactu.Application.Common.Abstractions.IHashCalculator`
+- Implementaci贸n: `gesFactu.Infrastructure.VeriFactu.Sha256HashCalculator`
+- XML: `RegistroAltaXmlBuilder.FormatImporte` usa `0.00`; el c谩lculo de huella debe usar la misma representaci贸n.
 
 ## Encadenamiento
 
-La cadena de registros es cr韙ica. El hash de cada nuevo registro incluye el hash del anterior:
+1. Primer registro: `Huella=`.
+2. Siguiente registro: `Huella=<huella del registro anterior>`.
+3. El valor de `FechaHoraHusoGenRegistro` se genera una vez, se persiste y se reutiliza tanto para el hash como para el XML.
 
-1. **Registro 1 (primero):**
-   - `previousHash = ""`
-   - Calcula su propio hash
+## Validaci贸n
 
-2. **Registro 2:**
-   - `previousHash = hash_del_registro_1`
-   - Calcula su propio hash basado en el anterior
+Los tests incluyen:
 
-3. **Registro N:**
-   - `previousHash = hash_del_registro_N-1`
-   - Calcula su propio hash
-
-## Validaci髇 de tests
-
-Todos los c醠culos de hash deben validarse contra:
-
-1. **Tests unitarios deterministas** (`Sha256HashCalculatorTests`)
-2. **Valores SHA256 conocidos** (test con "hello world")
-3. **Ejemplos oficiales AEAT** (si est醤 disponibles)
-4. **Consistencia con encadenamiento** (hash anterior incluido correctamente)
-
-## NOTAs importantes
-
-- ?? El hash es **inmutable** una vez calculado
-- ?? Cualquier cambio en los datos debe recalcular el hash
-- ?? La cadena de hashes es cr韙ica para auditor韆 fiscal
-- ?? No usar cultura local para formateo de importes
-- ?? UTF-8 sin BOM para codificaci髇
-
-## Integraci髇
-
-En `CreateBillingRecordCommandHandler`:
-
-```csharp
-var hashInput = new BillingRecordHashInput
-{
-    PreviousHash = command.PreviousRecordHash ?? string.Empty,
-    IssuerNif = nif.Value,
-    InvoiceSeries = series.Value,
-    InvoiceNumber = number.Value,
-    IssueDate = command.IssueDate,
-    TotalAmount = totalAmount.Amount,
-    TotalTaxAmount = totalTaxAmount.Amount,
-    Description = command.Description,
-    RegisterTimestamp = DateTime.UtcNow.ToString("o"),
-    SoftwareId = "gesFactu-1.0"
-};
-
-var calculatedHash = _hashCalculator.CalculateChainHash(hashInput);
-billingRecord.SetComputedHash(calculatedHash);
-```
-
-## TODOs
-
-- [ ] Validar contra ejemplos oficiales AEAT si est醤 disponibles
-- [ ] Incluir tipo de factura en comando de creaci髇
-- [ ] Configurar SoftwareId desde application settings
-- [ ] Crear tests de integraci髇 con ejemplos oficiales
+- Los vectores oficiales AEAT de los casos 6.1 y 6.2.
+- Un caso de regresi贸n con importes enteros para garantizar que se env铆an como `21.00` y `121.00`.
+- Determinismo, normalizaci贸n de espacios y equivalencia de valores decimal num茅ricamente iguales.

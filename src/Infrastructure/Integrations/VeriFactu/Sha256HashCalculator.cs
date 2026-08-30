@@ -15,6 +15,7 @@ namespace gesFactu.Infrastructure.VeriFactu;
 /// CuotaTotal=...&ImporteTotal=...&Huella=...&FechaHoraHusoGenRegistro=...
 ///
 /// Los valores se toman tal como aparecen en el XML, eliminando únicamente espacios al inicio/final.
+/// Los importes deben conservar la representación usada en el XML (dos decimales).
 /// Para el primer registro, Huella se informa vacía en la cadena de cálculo.
 /// Codificación: UTF-8. Algoritmo: SHA-256. Salida: hexadecimal en mayúsculas.
 /// </summary>
@@ -81,13 +82,10 @@ public sealed class Sha256HashCalculator : IHashCalculator
     }
 
     /// <summary>
-    /// Normaliza valores numéricos para el cálculo.
-    /// La especificación indica que una o dos posiciones decimales y los ceros a la derecha
-    /// se tratan indistintamente. Ej.: 123.1 y 123.10 generan la misma entrada lógica.
+    /// Formatea importes exactamente igual que RegistroAltaXmlBuilder.FormatImporte:
+    /// siempre dos decimales con punto como separador. La huella se calcula sobre
+    /// la representación textual enviada a AEAT, por lo que 21 debe ser "21.00".
     /// </summary>
     internal static string FormatDecimalParaHash(decimal value)
-    {
-        var rounded = Math.Round(value, 2, MidpointRounding.AwayFromZero);
-        return rounded.ToString("0.##", CultureInfo.InvariantCulture);
-    }
+        => value.ToString("0.00", CultureInfo.InvariantCulture);
 }
