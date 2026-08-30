@@ -314,7 +314,7 @@ public sealed class RegistroAltaXmlBuilderAdapter : IRegistroAltaXmlBuilder
         var hasRecipientNif = !string.IsNullOrWhiteSpace(data.RecipientNif);
         var hasRecipientName = !string.IsNullOrWhiteSpace(data.RecipientName);
 
-        if (data.TipoFactura is "F1" or "R1" or "R2" or "R3" or "R4" &&
+        if ((data.TipoFactura is "F1" or "R1" or "R2" or "R3" or "R4") &&
             (!hasRecipientNif || !hasRecipientName))
         {
             throw new InvalidOperationException(
