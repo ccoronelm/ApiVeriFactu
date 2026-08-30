@@ -62,6 +62,8 @@ public sealed class BillingRecordRepositoryTests : IDisposable
         var record = BillingRecord.Create(
             CreateInvoice(nif, series, number, date),
             "Issuer",
+            "87654321B",
+            "Recipient",
             $"Invoice {series}{number}",
             Money(121m),
             Money(21m));
