@@ -8,7 +8,7 @@ namespace gesFactu.Infrastructure.Tests.Concurrency;
 
 public sealed class OutboxClaimConcurrencyTests
 {
-    [SqlServerFact]
+    [PostgreSqlFact]
     public async Task TwoWorkers_CannotClaimSameMessage()
     {
         var connectionString = await CreateDatabaseAsync();
@@ -64,7 +64,7 @@ public sealed class OutboxClaimConcurrencyTests
         }
     }
 
-    [SqlServerFact]
+    [PostgreSqlFact]
     public async Task ExpiredLease_CanBeClaimedByAnotherWorker()
     {
         var connectionString = await CreateDatabaseAsync();
@@ -111,7 +111,7 @@ public sealed class OutboxClaimConcurrencyTests
         }
     }
 
-    [SqlServerFact]
+    [PostgreSqlFact]
     public async Task ScheduledRetry_IsNotClaimedBeforeDueTime()
     {
         var connectionString = await CreateDatabaseAsync();
@@ -154,7 +154,7 @@ public sealed class OutboxClaimConcurrencyTests
     private static ApplicationDbContext CreateContext(string connectionString)
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
-            .UseSqlServer(connectionString)
+            .UseNpgsql(connectionString)
             .Options;
 
         return new ApplicationDbContext(options);
@@ -163,11 +163,11 @@ public sealed class OutboxClaimConcurrencyTests
     private static async Task<string> CreateDatabaseAsync()
     {
         var serverConnection = Environment.GetEnvironmentVariable(
-            "GESFACTU_TEST_SQLSERVER");
+            "GESFACTU_TEST_POSTGRESQL");
 
         if (string.IsNullOrWhiteSpace(serverConnection))
             throw new InvalidOperationException(
-                "GESFACTU_TEST_SQLSERVER no está configurada.");
+                "GESFACTU_TEST_POSTGRESQL no está configurada.");
 
         var databaseName = "gesFactuOutboxCi_" + Guid.NewGuid().ToString("N");
         var connectionString =
@@ -191,7 +191,7 @@ public sealed class OutboxClaimConcurrencyTests
         }
 
         throw new InvalidOperationException(
-            "SQL Server de pruebas no estuvo disponible a tiempo.",
+            "PostgreSQL de pruebas no estuvo disponible a tiempo.",
             lastError);
     }
 
