@@ -4,7 +4,7 @@ using gesFactu.Application.Common;
 namespace gesFactu.Application.RegistrosFacturacion.Queries.ObtenerRegistro;
 
 /// <summary>
-/// Query para obtener un registro de facturación por ID.
+/// Query para obtener un registro de facturaciÃ³n por ID.
 /// </summary>
 public sealed record GetBillingRecordQuery(int BillingRecordId) : IRequest<Result<BillingRecordDto>>;
 
@@ -22,6 +22,7 @@ public sealed record BillingRecordDto(
     string? ComputedHash,
     string? PreviousRecordHash,
     string? AeatSubmissionId,
+    string? SubmissionCorrelationId,
     bool IsSubmitted,
     DateTime? CreatedAt,
     string? CreatedBy
