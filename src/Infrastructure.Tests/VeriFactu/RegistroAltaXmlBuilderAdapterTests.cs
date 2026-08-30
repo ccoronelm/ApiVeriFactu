@@ -38,6 +38,8 @@ public sealed class RegistroAltaXmlBuilderAdapterTests
         InvoiceSeries = "A",
         InvoiceNumber = invoiceNumber,
         IssueDate = new DateOnly(2025, 2, 3),
+        RecipientNif = "87654321B",
+        RecipientName = "DESTINATARIO PRUEBAS",
         TipoFactura = "F1",
         Description = "Servicio de pruebas",
         CuotaTotal = 21.00m,
