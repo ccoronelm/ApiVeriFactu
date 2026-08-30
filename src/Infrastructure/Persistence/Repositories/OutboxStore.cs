@@ -147,6 +147,22 @@ public class OutboxStore : IOutboxStore
                 m => m.CorrelationId == correlationId,
                 cancellationToken);
 
+    public Task<bool> ExistsForAggregateEventAsync(
+        string aggregateType,
+        int aggregateId,
+        string eventType,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(aggregateType);
+        ArgumentException.ThrowIfNullOrWhiteSpace(eventType);
+
+        return _context.OutboxMessages.AnyAsync(
+            m => m.AggregateType == aggregateType
+                 && m.AggregateId == aggregateId
+                 && m.EventType == eventType,
+            cancellationToken);
+    }
+
     public async Task AddAsync(
         OutboxMessage message,
         CancellationToken cancellationToken = default)
