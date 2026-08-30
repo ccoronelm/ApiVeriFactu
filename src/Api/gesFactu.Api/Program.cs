@@ -1,4 +1,5 @@
 using System.Text.Json;
+using gesFactu.Api.Configuration;
 using gesFactu.Api.Health;
 using gesFactu.Api.Middleware;
 using gesFactu.Application;
@@ -34,6 +35,9 @@ builder.Host.UseSerilog((context, loggerConfig) =>
 
 builder.Services.AddApplicationServices();
 builder.Services.AddInfrastructureServices(builder.Configuration);
+
+builder.Services.Configure<OperationsOptions>(
+    builder.Configuration.GetSection(OperationsOptions.SectionName));
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
@@ -84,6 +88,11 @@ app.Configuration
     .GetSection(VeriFactuOptions.SectionName)
     .Bind(veriFactuOptions);
 
+var operationsOptions = new OperationsOptions();
+app.Configuration
+    .GetSection(OperationsOptions.SectionName)
+    .Bind(operationsOptions);
+
 if (app.Environment.IsDevelopment() &&
     veriFactuOptions.Environment == VeriFactuEntorno.Production)
 {
@@ -109,6 +118,13 @@ if (app.Environment.IsProduction())
     {
         throw new InvalidOperationException(
             "Producción requiere VeriFactu:ClientMode=Soap.");
+    }
+
+    if (string.IsNullOrWhiteSpace(operationsOptions.AdminApiKey) ||
+        operationsOptions.AdminApiKey.Length < 32)
+    {
+        throw new InvalidOperationException(
+            "Producción requiere Operations:AdminApiKey con al menos 32 caracteres, suministrada como secreto.");
     }
 }
 
