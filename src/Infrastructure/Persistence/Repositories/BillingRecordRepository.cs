@@ -1,12 +1,11 @@
-using Microsoft.EntityFrameworkCore;
 using gesFactu.Application.Common.Abstractions;
 using gesFactu.Domain.Entities;
+using Microsoft.EntityFrameworkCore;
 
 namespace gesFactu.Infrastructure.Persistence.Repositories;
 
 /// <summary>
-/// Implementaci髇 del repositorio para BillingRecord.
-/// A韘la EF Core de la l骻ica de aplicaci髇.
+/// Repositorio EF Core de BillingRecord.
 /// </summary>
 public sealed class BillingRecordRepository : IBillingRecordRepository
 {
@@ -17,38 +16,52 @@ public sealed class BillingRecordRepository : IBillingRecordRepository
         _dbContext = dbContext;
     }
 
-    public async Task AddAsync(BillingRecord billingRecord, CancellationToken cancellationToken = default)
-    {
-        await _dbContext.BillingRecords.AddAsync(billingRecord, cancellationToken);
-    }
-
-    public async Task<BillingRecord?> GetByIdAsync(int id, CancellationToken cancellationToken = default)
-    {
-        return await _dbContext.BillingRecords.FirstOrDefaultAsync(r => r.Id == id, cancellationToken);
-    }
-
-    public async Task<BillingRecord?> GetPreviousRecordAsync(
-        string issuerNif,
-        string invoiceSeries,
-        DateOnly issueDateCurrent,
+    public async Task AddAsync(
+        BillingRecord billingRecord,
         CancellationToken cancellationToken = default)
     {
-        // Obtiene el registro m醩 reciente de la misma serie del mismo contribuyente
-        // cuya fecha de emisi髇 sea anterior a la del registro actual.
-        // 
-        // Ref: /VERIFACTU - Cadena de registros:
-        // La cadena se forma por serie+contribuyente, ordenada cronol骻icamente.
-        // El hash anterior se busca entre registros del mismo serie+nif que hayan
-        // sido procesados previamente (m醩 antiguos en fecha).
+        await _dbContext.BillingRecords.AddAsync(
+            billingRecord,
+            cancellationToken);
+    }
 
-        return await _dbContext.BillingRecords
-            .Where(r => r.IssuerNif == issuerNif 
-                     && r.InvoiceSeries == invoiceSeries
-                     && r.IssueDate < issueDateCurrent
-                     && r.IsSubmitted) // Solo considerar registros ya enviados a AEAT
-            .OrderByDescending(r => r.IssueDate)  // M醩 reciente primero (pero anterior al actual)
-            .ThenByDescending(r => r.Id)          // Si hay empate de fecha, usar ID descendente
+    public Task<BillingRecord?> GetByIdAsync(
+        int id,
+        CancellationToken cancellationToken = default)
+        => _dbContext.BillingRecords
+            .FirstOrDefaultAsync(r => r.Id == id, cancellationToken);
+
+    public Task<BillingRecord?> GetLastGeneratedRecordAsync(
+        string issuerNif,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(issuerNif);
+
+        // La cadena VERI*FACTU sigue el orden de generaci贸n de RF del SIF,
+        // no la serie, la fecha de expedici贸n ni el estado de remisi贸n.
+        // Dentro de la transacci贸n SERIALIZABLE, el 铆ndice (IssuerNif, Id)
+        // permite que SQL Server proteja el rango consultado.
+        return _dbContext.BillingRecords
+            .Where(r => r.IssuerNif == issuerNif)
+            .OrderByDescending(r => r.Id)
             .FirstOrDefaultAsync(cancellationToken);
+    }
+
+    public Task<BillingRecord?> GetByFiscalIdentityAsync(
+        string issuerNif,
+        string fiscalInvoiceNumber,
+        DateOnly issueDate,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(issuerNif);
+        ArgumentException.ThrowIfNullOrWhiteSpace(fiscalInvoiceNumber);
+
+        return _dbContext.BillingRecords
+            .FirstOrDefaultAsync(
+                r => r.IssuerNif == issuerNif
+                     && r.FiscalInvoiceNumber == fiscalInvoiceNumber
+                     && r.IssueDate == issueDate,
+                cancellationToken);
     }
 
     public async Task<IEnumerable<BillingRecord>> ListByIssuerAsync(
@@ -60,9 +73,10 @@ public sealed class BillingRecordRepository : IBillingRecordRepository
         var skip = (pageNumber - 1) * pageSize;
 
         return await _dbContext.BillingRecords
+            .Where(r => r.IssuerNif == issuerNif)
+            .OrderByDescending(r => r.Id)
             .Skip(skip)
             .Take(pageSize)
-            .OrderByDescending(r => r.CreateDate)
             .ToListAsync(cancellationToken);
     }
 
@@ -71,8 +85,11 @@ public sealed class BillingRecordRepository : IBillingRecordRepository
         string aeatSubmissionId,
         CancellationToken cancellationToken = default)
     {
-        var record = await _dbContext.BillingRecords.FindAsync(new object[] { id }, cancellationToken: cancellationToken);
-        if (record != null)
+        var record = await _dbContext.BillingRecords.FindAsync(
+            new object[] { id },
+            cancellationToken: cancellationToken);
+
+        if (record is not null)
         {
             record.MarkAsSubmitted(aeatSubmissionId);
             _dbContext.BillingRecords.Update(record);
@@ -84,12 +101,13 @@ public sealed class BillingRecordRepository : IBillingRecordRepository
         string status,
         CancellationToken cancellationToken = default)
     {
-        var record = await _dbContext.BillingRecords.FindAsync(new object[] { id }, cancellationToken: cancellationToken);
-        if (record != null)
+        var record = await _dbContext.BillingRecords.FindAsync(
+            new object[] { id },
+            cancellationToken: cancellationToken);
+
+        if (record is not null)
         {
-            // TODO: Crear m閠odo espec韋ico en agregado si es necesario
-            // Por ahora actualizamos el status directamente
-            record.GetType().GetProperty("Status")?.SetValue(record, status);
+            record.Status = status;
             _dbContext.BillingRecords.Update(record);
         }
     }
