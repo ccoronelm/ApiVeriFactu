@@ -1,81 +1,188 @@
-
-using Serilog;
+using System.Text.Json;
+using gesFactu.Api.Configuration;
+using gesFactu.Api.Health;
+using gesFactu.Api.Middleware;
 using gesFactu.Application;
 using gesFactu.Infrastructure;
 using gesFactu.Infrastructure.Integrations.VeriFactu;
-using gesFactu.Api.Middleware;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Logging estructurado
 builder.Host.UseSerilog((context, loggerConfig) =>
 {
     loggerConfig
-        .MinimumLevel.Debug()
-        .WriteTo.Console(outputTemplate: "[{Timestamp:yyyy-MM-dd HH:mm:ss}] {Level:u3} {SourceContext}: {Message:lj}{NewLine}{Exception}")
+        .MinimumLevel.Is(
+            context.HostingEnvironment.IsProduction()
+                ? Serilog.Events.LogEventLevel.Information
+                : Serilog.Events.LogEventLevel.Debug)
+        .MinimumLevel.Override(
+            "Microsoft.AspNetCore",
+            Serilog.Events.LogEventLevel.Warning)
+        .MinimumLevel.Override(
+            "Microsoft.EntityFrameworkCore.Database.Command",
+            Serilog.Events.LogEventLevel.Warning)
+        .WriteTo.Console(
+            outputTemplate:
+                "[{Timestamp:yyyy-MM-dd HH:mm:ss}] {Level:u3} " +
+                "{SourceContext} [{CorrelationId}] {Message:lj}" +
+                "{NewLine}{Exception}")
         .Enrich.FromLogContext()
         .Enrich.WithProperty("Application", "gesFactu.Api");
-
-    if (!context.HostingEnvironment.IsProduction())
-    {
-        loggerConfig.MinimumLevel.Debug();
-    }
 });
 
-// Servicios
 builder.Services.AddApplicationServices();
 builder.Services.AddInfrastructureServices(builder.Configuration);
+
+builder.Services.Configure<OperationsOptions>(
+    builder.Configuration.GetSection(OperationsOptions.SectionName));
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// CORS (ajustar seg˙n necesidades)
+builder.Services
+    .AddHealthChecks()
+    .AddCheck<PostgreSqlHealthCheck>(
+        "postgresql",
+        tags: ["ready"])
+    .AddCheck<VeriFactuReadinessHealthCheck>(
+        "verifactu",
+        tags: ["ready"]);
+
+var allowedOrigins =
+    builder.Configuration
+        .GetSection("Cors:AllowedOrigins")
+        .Get<string[]>()
+    ?? Array.Empty<string>();
+
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowAll", policy =>
+    options.AddPolicy("Frontend", policy =>
     {
-        policy.AllowAnyOrigin()
-              .AllowAnyMethod()
+        if (allowedOrigins.Length > 0)
+            policy.WithOrigins(allowedOrigins);
+
+        policy.AllowAnyMethod()
               .AllowAnyHeader();
     });
 });
 
 var app = builder.Build();
 
-// ?? ValidaciÛn fail-fast: Development no puede usar Production endpoint ??????
-// Ref: /VERIFACTU/SistemaFacturacion.wsdl.xml ó endpoints por entorno
-if (app.Environment.IsDevelopment())
-{
-    var veriFactuOptions = new VeriFactuOptions();
-    app.Configuration.GetSection(VeriFactuOptions.SectionName).Bind(veriFactuOptions);
+var veriFactuOptions = new VeriFactuOptions();
+app.Configuration
+    .GetSection(VeriFactuOptions.SectionName)
+    .Bind(veriFactuOptions);
 
-    if (veriFactuOptions.Environment == VeriFactuEntorno.Production)
+var operationsOptions = new OperationsOptions();
+app.Configuration
+    .GetSection(OperationsOptions.SectionName)
+    .Bind(operationsOptions);
+
+if (app.Environment.IsDevelopment() &&
+    veriFactuOptions.Environment == VeriFactuEntorno.Production)
+{
+    throw new InvalidOperationException(
+        "CONFIGURACI√ìN INV√ÅLIDA: Development no puede usar AEAT Production.");
+}
+
+if (app.Environment.IsProduction())
+{
+    if (veriFactuOptions.Environment != VeriFactuEntorno.Production)
     {
         throw new InvalidOperationException(
-            "CONFIGURACI”N INV¡LIDA: El entorno ASP.NET Core es 'Development' pero " +
-            "VeriFactu:Environment est· configurado como 'Production'. " +
-            "En Development solo se permite VeriFactu:Environment=Test. " +
-            "Endpoint TEST oficial: " + VeriFactuOptions.EndpointTest +
-            " | Ref: /VERIFACTU/SistemaFacturacion.wsdl.xml");
+            "En ASP.NET Core Production, VeriFactu:Environment debe ser Production.");
+    }
+
+    if (!veriFactuOptions.AllowProduction)
+    {
+        throw new InvalidOperationException(
+            "Producci√≥n requiere VeriFactu:AllowProduction=true de forma expl√≠cita.");
+    }
+
+    if (veriFactuOptions.ClientMode != "SoapClient")
+    {
+        throw new InvalidOperationException(
+            "Producci√≥n requiere VeriFactu:ClientMode=Soap.");
+    }
+
+    if (string.IsNullOrWhiteSpace(operationsOptions.AdminApiKey) ||
+        operationsOptions.AdminApiKey.Length < 32)
+    {
+        throw new InvalidOperationException(
+            "Producci√≥n requiere Operations:AdminApiKey con al menos 32 caracteres, suministrada como secreto.");
     }
 }
 
-// Middleware
+app.UseMiddleware<CorrelationIdMiddleware>();
 app.UseMiddleware<GlobalExceptionMiddleware>();
 
-if (app.Environment.IsDevelopment())
+app.UseSerilogRequestLogging(options =>
+{
+    options.MessageTemplate =
+        "HTTP {RequestMethod} {RequestPath} -> {StatusCode} en {Elapsed:0.0000} ms";
+});
+
+var openApiEnabled =
+    app.Environment.IsDevelopment() ||
+    app.Configuration.GetValue<bool>("OpenApi:Enabled");
+
+if (openApiEnabled)
 {
     app.UseSwagger();
     app.UseSwaggerUI();
 }
 
 app.UseHttpsRedirection();
-app.UseCors("AllowAll");
+app.UseCors("Frontend");
 app.UseAuthorization();
+
+app.MapHealthChecks(
+    "/health/live",
+    new HealthCheckOptions
+    {
+        Predicate = _ => false,
+        ResponseWriter = WriteHealthResponseAsync
+    });
+
+app.MapHealthChecks(
+    "/health/ready",
+    new HealthCheckOptions
+    {
+        Predicate = registration =>
+            registration.Tags.Contains("ready"),
+        ResponseWriter = WriteHealthResponseAsync
+    });
 
 app.MapControllers();
 
-Log.Information("Iniciando aplicaciÛn gesFactu");
+Log.Information(
+    "Iniciando gesFactu. ASPNET={AspNetEnvironment}; AEAT={AeatEnvironment}; ClientMode={ClientMode}",
+    app.Environment.EnvironmentName,
+    veriFactuOptions.Environment,
+    veriFactuOptions.ClientMode);
+
 app.Run();
 
+static Task WriteHealthResponseAsync(
+    HttpContext context,
+    HealthReport report)
+{
+    context.Response.ContentType = "application/json; charset=utf-8";
+
+    return context.Response.WriteAsync(
+        JsonSerializer.Serialize(
+            new
+            {
+                status = report.Status.ToString(),
+                checks = report.Entries.Select(x => new
+                {
+                    name = x.Key,
+                    status = x.Value.Status.ToString(),
+                    description = x.Value.Description
+                })
+            }));
+}

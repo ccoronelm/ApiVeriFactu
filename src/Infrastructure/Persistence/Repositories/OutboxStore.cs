@@ -148,6 +148,30 @@ public class OutboxStore : IOutboxStore
                 m => m.CorrelationId == correlationId,
                 cancellationToken);
 
+    public async Task<bool> RequeueAsync(
+        long messageId,
+        CancellationToken cancellationToken = default)
+    {
+        var message = await _context.OutboxMessages
+            .FirstOrDefaultAsync(
+                x => x.Id == messageId,
+                cancellationToken);
+
+        if (message is null)
+            return false;
+
+        message.IsProcessed = false;
+        message.ProcessedAt = null;
+        message.ProcessingAttempts = 0;
+        message.LastProcessingError = null;
+        message.NextAttemptAt = DateTime.UtcNow;
+        message.LockedBy = null;
+        message.LockedUntil = null;
+
+        await _context.SaveChangesAsync(cancellationToken);
+        return true;
+    }
+
     public Task<bool> ExistsForAggregateEventAsync(
         string aggregateType,
         int aggregateId,

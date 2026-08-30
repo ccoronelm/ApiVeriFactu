@@ -14,9 +14,6 @@ public interface IVeriFactuGateway
         VeriFactuQueryRequest request,
         CancellationToken cancellationToken = default);
 
-    Task<VeriFactuCancellationResult> CancelBillingRecordAsync(
-        VeriFactuCancellationRequest request,
-        CancellationToken cancellationToken = default);
 }
 
 /// <summary>
@@ -171,23 +168,4 @@ public record VeriFactuQueryRecord
     public string? ErrorCode { get; init; }
     public string? ErrorDescription { get; init; }
     public DateTimeOffset? LastModifiedAt { get; init; }
-}
-
-public record VeriFactuCancellationRequest
-{
-    public required string TaxpayerNif { get; init; }
-    public required string SubmissionId { get; init; }
-    public required string CancellationReason { get; init; }
-    public string? CancellationXmlContent { get; init; }
-}
-
-public record VeriFactuCancellationResult
-{
-    public required bool IsAccepted { get; init; }
-    public required string StatusCode { get; init; }
-    public required string StatusDescription { get; init; }
-    public string? CancellationId { get; init; }
-    public required AeatResponseCode ResponseCode { get; init; }
-    public string? AdditionalDetails { get; init; }
-    public DateTime? ServerTimestamp { get; init; }
 }

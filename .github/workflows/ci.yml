@@ -37,6 +37,27 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Block committed certificates and secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if git ls-files | grep -Eiq '\.(pfx|p12|pem|key)$'; then
+            echo "Forbidden private certificate/key files are tracked:"
+            git ls-files | grep -Ei '\.(pfx|p12|pem|key)$'
+            exit 1
+          fi
+
+          if git grep -n -E '"PfxPassword"[[:space:]]*:[[:space:]]*"[^"]+"' -- '*.json' '*.yml' '*.yaml'; then
+            echo "A non-empty PfxPassword is committed."
+            exit 1
+          fi
+
+          if git grep -n -E '"AdminApiKey"[[:space:]]*:[[:space:]]*"[^"]+"' -- '*.json' '*.yml' '*.yaml'; then
+            echo "A non-empty AdminApiKey is committed."
+            exit 1
+          fi
+
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:

@@ -369,10 +369,6 @@ public sealed class OutboxProcessorIntegrationTests
             CancellationToken cancellationToken = default)
             => throw new NotSupportedException();
 
-        public Task<VeriFactuCancellationResult> CancelBillingRecordAsync(
-            VeriFactuCancellationRequest request,
-            CancellationToken cancellationToken = default)
-            => throw new NotSupportedException();
     }
 
     private sealed class AcceptedGateway : IVeriFactuGateway
@@ -396,9 +392,5 @@ public sealed class OutboxProcessorIntegrationTests
             CancellationToken cancellationToken = default)
             => throw new NotSupportedException();
 
-        public Task<VeriFactuCancellationResult> CancelBillingRecordAsync(
-            VeriFactuCancellationRequest request,
-            CancellationToken cancellationToken = default)
-            => throw new NotSupportedException();
     }
 }

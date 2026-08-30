@@ -19,10 +19,14 @@ public interface IDeadLetterStore
         CancellationToken cancellationToken);
 
     /// <summary>
-    /// Obtiene los mensajes m·s antiguos en la DLQ que no han sido revisados.
+    /// Obtiene los mensajes m√°s antiguos en la DLQ que no han sido revisados.
     /// </summary>
     Task<List<gesFactu.Domain.Entities.DeadLetterMessage>> GetUnreviewedMessagesAsync(
         int pageSize,
+        CancellationToken cancellationToken);
+
+    Task<gesFactu.Domain.Entities.DeadLetterMessage?> GetByIdAsync(
+        Guid dlqMessageId,
         CancellationToken cancellationToken);
 
     /// <summary>

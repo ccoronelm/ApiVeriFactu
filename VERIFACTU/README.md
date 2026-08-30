@@ -36,34 +36,48 @@ Mantener, cuando sea posible, los nombres originales de los archivos descargados
 
 ## Índice
 
-Completar esta sección a medida que se incorporen documentos.
+### Registro de alta / anulación / rectificativas
+- `SuministroLR.xsd.xml`
+- `SuministroInformacion.xsd.xml`
+- `RespuestaSuministro.xsd.xml`
+- `Validaciones_Errores_Veri-Factu.pdf`
+- `errores.properties.txt`
 
-### Registro de alta
-- Pendiente de indexar.
-
-### Registro de anulación
-- Pendiente de indexar.
-
-### Huella / Hash
-- Pendiente de indexar.
-
-### Encadenamiento
-- Pendiente de indexar.
+### Huella / Hash / Encadenamiento
+- `Veri-Factu_especificaciones_huella_hash_registros.pdf`
+- `SuministroInformacion.xsd.xml`
 
 ### QR
-- Pendiente de indexar.
+- `DetalleEspecificacTecnCodigoQRfactura.pdf`
 
-### Identificación del sistema informático
-- Pendiente de indexar.
+### Sistema informático / multiobligado
+- `SuministroInformacion.xsd.xml`
+- `Veri-Factu_Descripcion_SWeb.pdf`
+- `SistemaFacturacion.wsdl.xml`
 
 ### Servicios web / SOAP / WSDL
-- Pendiente de indexar.
+- `SistemaFacturacion.wsdl.xml`
+- Operaciones oficiales:
+  - `RegFactuSistemaFacturacion`
+  - `ConsultaFactuSistemaFacturacion`
 
-### Esquemas XSD
-- Pendiente de indexar.
+### Consultas
+- `ConsultaLR.xsd.xml`
+- `RespuestaConsultaLR.xsd.xml`
+- `SistemaFacturacion.wsdl.xml`
 
 ### Errores y validaciones AEAT
-- Pendiente de indexar.
+- `Validaciones_Errores_Veri-Factu.pdf`
+- `errores.properties.txt`
+
+### Firma electrónica
+- `EspecTecGenerFirmaElectRfact.pdf`
+- `AnexosEjemplosFirmaRegFact/`
+
+> Los documentos de firma se conservan como documentación oficial, pero los registros
+> en modalidad VERI*FACTU de gesFactu no se firman con XML/XAdES. La autenticación
+> de la remisión se realiza mediante certificado electrónico/mTLS.
 
 ### Ejemplos oficiales
-- `AnexosEjemplosFirmaRegFact/` — ejemplos/anexos ya presentes en el repositorio.
+- `AnexosEjemplosFirmaRegFact/`
+- `EjemplosDeclaracionResponsable(V0.5.1).pdf`

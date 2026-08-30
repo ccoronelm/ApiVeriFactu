@@ -61,6 +61,16 @@ public static class VeriFactuServiceCollectionExtensions
                 "VeriFactu:AllowProduction=true de forma explícita.");
         }
 
+        if (options.Environment == VeriFactuEntorno.Production &&
+            !string.Equals(
+                options.ClientMode,
+                "SoapClient",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException(
+                "BLOQUEO DE SEGURIDAD: Producción requiere VeriFactu:ClientMode=SoapClient.");
+        }
+
         if (options.TimeoutSeconds <= 0)
             throw new InvalidOperationException("VeriFactu:TimeoutSeconds debe ser mayor que cero.");
 
@@ -176,6 +186,7 @@ public static class VeriFactuServiceCollectionExtensions
         VeriFactuOptions options)
     {
         services.AddSingleton<IVeriFactuHttpClientProvider, VeriFactuHttpClientProvider>();
+        services.AddHostedService<VeriFactuStartupValidator>();
         services.AddScoped<VeriFactuGatewaySoapClient>();
         services.AddScoped<IVeriFactuGateway>(sp =>
             sp.GetRequiredService<VeriFactuGatewaySoapClient>());

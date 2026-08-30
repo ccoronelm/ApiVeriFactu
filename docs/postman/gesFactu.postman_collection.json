@@ -1,0 +1,179 @@
+{
+  "info": {
+    "name": "gesFactu VERI*FACTU API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Colección operativa sin secretos. Configure variables antes de usarla."
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "https://localhost:5001"
+    },
+    {
+      "key": "billingRecordId",
+      "value": "1"
+    },
+    {
+      "key": "dlqId",
+      "value": "00000000-0000-0000-0000-000000000000"
+    },
+    {
+      "key": "adminApiKey",
+      "value": ""
+    },
+    {
+      "key": "issuerNif",
+      "value": ""
+    },
+    {
+      "key": "issuerName",
+      "value": ""
+    },
+    {
+      "key": "recipientNif",
+      "value": ""
+    },
+    {
+      "key": "recipientName",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Live",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/health/live"
+          }
+        },
+        {
+          "name": "Ready",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/health/ready"
+          }
+        }
+      ]
+    },
+    {
+      "name": "BillingRecords",
+      "item": [
+        {
+          "name": "Create F1",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"issuerNif\": \"{{issuerNif}}\",\n  \"invoiceSeries\": \"A/\",\n  \"invoiceNumber\": \"000001\",\n  \"issueDate\": \"30-08-2026\",\n  \"issuerName\": \"{{issuerName}}\",\n  \"recipientNif\": \"{{recipientNif}}\",\n  \"recipientName\": \"{{recipientName}}\",\n  \"description\": \"Factura Postman\",\n  \"totalAmount\": 121,\n  \"totalTaxAmount\": 21,\n  \"invoiceType\": \"F1\",\n  \"taxDetails\": [\n    {\n      \"taxCode\": \"01\",\n      \"regimeCode\": \"01\",\n      \"operationQualification\": \"S1\",\n      \"taxRate\": 21,\n      \"taxBase\": 100,\n      \"taxAmount\": 21\n    }\n  ]\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/BillingRecords"
+          }
+        },
+        {
+          "name": "Get",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/BillingRecords/{{billingRecordId}}"
+          }
+        },
+        {
+          "name": "Submit AEAT",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/v1/BillingRecords/{{billingRecordId}}/submit"
+          }
+        },
+        {
+          "name": "QR PNG",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/BillingRecords/{{billingRecordId}}/qr"
+          }
+        },
+        {
+          "name": "QR URL",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/BillingRecords/{{billingRecordId}}/qr/url"
+          }
+        },
+        {
+          "name": "Submission attempts",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/BillingRecords/{{billingRecordId}}/submission-attempts"
+          }
+        }
+      ]
+    },
+    {
+      "name": "AEAT",
+      "item": [
+        {
+          "name": "Query records",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/aeat/records?fiscalYear=2026&period=08&showIssuerName=true"
+          }
+        },
+        {
+          "name": "Configured taxpayers",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/taxpayers"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Operations",
+      "item": [
+        {
+          "name": "Dead letters",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-GesFactu-Admin-Key",
+                "value": "{{adminApiKey}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/operations/dead-letters?take=50"
+          }
+        },
+        {
+          "name": "Requeue dead letter",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-GesFactu-Admin-Key",
+                "value": "{{adminApiKey}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"notes\": \"Reintento autorizado desde Postman\"\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/operations/dead-letters/{{dlqId}}/requeue"
+          }
+        }
+      ]
+    }
+  ]
+}
