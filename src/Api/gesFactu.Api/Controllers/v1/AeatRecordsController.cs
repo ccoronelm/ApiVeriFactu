@@ -49,7 +49,8 @@ public sealed class AeatRecordsController : ControllerBase
                 request.PageIssueDate,
                 request.FilterCurrentSystem,
                 request.ShowIssuerName,
-                request.ShowSystemInformation),
+                request.ShowSystemInformation,
+                request.Taxpayer),
             cancellationToken);
 
         return result switch
@@ -101,6 +102,11 @@ public sealed record AeatRecordsQueryRequest
 {
     public required string FiscalYear { get; init; }
     public required string Period { get; init; }
+
+    /// <summary>
+    /// Clave o NIF del obligado. Obligatorio cuando hay varios configurados.
+    /// </summary>
+    public string? Taxpayer { get; init; }
 
     public string? InvoiceNumber { get; init; }
     public string? CounterpartyNif { get; init; }
