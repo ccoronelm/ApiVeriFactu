@@ -118,6 +118,8 @@ public sealed class SubmitConcurrencyTests
         var record = BillingRecord.Create(
             identifier,
             "EMISOR PRUEBAS",
+            "87654321B",
+            "DESTINATARIO PRUEBAS",
             "Servicio de pruebas",
             total,
             tax,
