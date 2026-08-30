@@ -133,12 +133,14 @@ public sealed class RegistroAltaXmlBuilderAdapter : IRegistroAltaXmlBuilder
                 : null,
             new XElement(ns + "TipoFactura", data.TipoFactura),
             new XElement(ns + "DescripcionOperacion", data.Description),
-            new XElement(
-                ns + "Destinatarios",
-                new XElement(
-                    ns + "IDDestinatario",
-                    new XElement(ns + "NombreRazon", data.RecipientName),
-                    new XElement(ns + "NIF", data.RecipientNif))),
+            string.IsNullOrWhiteSpace(data.RecipientNif)
+                ? null
+                : new XElement(
+                    ns + "Destinatarios",
+                    new XElement(
+                        ns + "IDDestinatario",
+                        new XElement(ns + "NombreRazon", data.RecipientName),
+                        new XElement(ns + "NIF", data.RecipientNif))),
             desgloseElement,
             new XElement(ns + "CuotaTotal", RegistroAltaXmlBuilder.FormatImporte(data.CuotaTotal)),
             new XElement(ns + "ImporteTotal", RegistroAltaXmlBuilder.FormatImporte(data.ImporteTotal)),
@@ -228,15 +230,29 @@ public sealed class RegistroAltaXmlBuilderAdapter : IRegistroAltaXmlBuilder
                 $"Faltan datos de VeriFactu:SistemaInformatico: {string.Join(", ", missing)}.");
         }
 
-        if (data.TipoFactura == "F1")
+        if (data.TipoFactura is not ("F1" or "F2"))
         {
-            if (string.IsNullOrWhiteSpace(data.RecipientNif) ||
-                string.IsNullOrWhiteSpace(data.RecipientName))
-            {
-                throw new InvalidOperationException(
-                    "RegistroAlta F1 requiere el bloque Destinatarios.");
-            }
+            throw new InvalidOperationException(
+                "RegistroAlta solo soporta F1/F2 en esta fase.");
+        }
 
+        var hasRecipientNif = !string.IsNullOrWhiteSpace(data.RecipientNif);
+        var hasRecipientName = !string.IsNullOrWhiteSpace(data.RecipientName);
+
+        if (data.TipoFactura == "F1" && (!hasRecipientNif || !hasRecipientName))
+        {
+            throw new InvalidOperationException(
+                "RegistroAlta F1 requiere el bloque Destinatarios.");
+        }
+
+        if (hasRecipientNif != hasRecipientName)
+        {
+            throw new InvalidOperationException(
+                "NIF y nombre del destinatario deben informarse juntos.");
+        }
+
+        if (hasRecipientNif)
+        {
             if (data.RecipientNif.Trim().Length != 9)
             {
                 throw new InvalidOperationException(
