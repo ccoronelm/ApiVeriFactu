@@ -1,24 +1,16 @@
-using System.Net.Security;
 using System.Security.Cryptography.X509Certificates;
 using gesFactu.Application.Common.Abstractions;
 using gesFactu.Infrastructure.Integrations.VeriFactu.Certificate;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 
 namespace gesFactu.Infrastructure.Integrations.VeriFactu;
 
 /// <summary>
-/// Extension methods para registrar cliente AEAT en contenedor DI.
+/// Registro y validaciÃ³n fail-fast del cliente AEAT.
 /// </summary>
 public static class VeriFactuServiceCollectionExtensions
 {
-    /// <summary>
-    /// Registra la implementación configurada de IVeriFactuGateway y servicios relacionados.
-    ///
-    /// Selecciona entre stub (desarrollo) o cliente SOAP real basado en VeriFactu:ClientMode.
-    /// </summary>
     public static IServiceCollection AddVeriFactuClient(
         this IServiceCollection services,
         IConfiguration configuration)
@@ -26,66 +18,121 @@ public static class VeriFactuServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(configuration);
 
-        var veriFactuSection = configuration.GetSection(VeriFactuOptions.SectionName);
+        var section = configuration.GetSection(VeriFactuOptions.SectionName);
         var options = new VeriFactuOptions();
-        veriFactuSection.Bind(options);
+        section.Bind(options);
 
-        services.Configure<VeriFactuOptions>(veriFactuSection);
+        ValidateSafety(options);
 
-        // Registrar CertificateLoader siempre (usado en modo SOAP)
+        services.Configure<VeriFactuOptions>(section);
         services.AddSingleton<CertificateLoader>();
 
-        var clientMode = options.ClientMode?.ToLowerInvariant() ?? "stub";
+        var mode = options.ClientMode?.Trim().ToLowerInvariant();
 
-        if (clientMode == "soapclient")
+        switch (mode)
         {
-            AddSoapClient(services, options);
-        }
-        else
-        {
-            services.AddScoped<IVeriFactuGateway, VeriFactuGatewayStub>();
+            case "stub":
+                services.AddScoped<IVeriFactuGateway, VeriFactuGatewayStub>();
+                break;
+
+            case "soapclient":
+                ValidateSoapConfiguration(options);
+                AddSoapClient(services, options);
+                break;
+
+            default:
+                throw new InvalidOperationException(
+                    $"VeriFactu:ClientMode invÃ¡lido: '{options.ClientMode}'. " +
+                    "Valores permitidos: Stub, SoapClient.");
         }
 
         return services;
     }
 
-    private static void AddSoapClient(IServiceCollection services, VeriFactuOptions options)
+    private static void ValidateSafety(VeriFactuOptions options)
     {
-        // Cargar el certificado una sola vez (singleton-safe: el certificado es inmutable)
-        services.AddSingleton<X509Certificate2?>(sp =>
+        if (options.Environment == VeriFactuEntorno.Production &&
+            !options.AllowProduction)
+        {
+            throw new InvalidOperationException(
+                "BLOQUEO DE SEGURIDAD: VeriFactu:Environment=Production requiere " +
+                "VeriFactu:AllowProduction=true de forma explÃ­cita.");
+        }
+
+        if (options.TimeoutSeconds <= 0)
+            throw new InvalidOperationException("VeriFactu:TimeoutSeconds debe ser mayor que cero.");
+    }
+
+    private static void ValidateSoapConfiguration(VeriFactuOptions options)
+    {
+        var missing = new List<string>();
+
+        if (string.IsNullOrWhiteSpace(options.Taxpayer.Nif))
+            missing.Add("Taxpayer:Nif");
+        if (string.IsNullOrWhiteSpace(options.Taxpayer.Name))
+            missing.Add("Taxpayer:Name");
+
+        if (string.IsNullOrWhiteSpace(options.SistemaInformatico.NombreRazon))
+            missing.Add("SistemaInformatico:NombreRazon");
+        if (string.IsNullOrWhiteSpace(options.SistemaInformatico.Nif))
+            missing.Add("SistemaInformatico:Nif");
+        if (string.IsNullOrWhiteSpace(options.SistemaInformatico.NombreSistemaInformatico))
+            missing.Add("SistemaInformatico:NombreSistemaInformatico");
+        if (string.IsNullOrWhiteSpace(options.SistemaInformatico.IdSistemaInformatico))
+            missing.Add("SistemaInformatico:IdSistemaInformatico");
+        if (string.IsNullOrWhiteSpace(options.SistemaInformatico.Version))
+            missing.Add("SistemaInformatico:Version");
+        if (string.IsNullOrWhiteSpace(options.SistemaInformatico.NumeroInstalacion))
+            missing.Add("SistemaInformatico:NumeroInstalacion");
+
+        var hasThumbprint = !string.IsNullOrWhiteSpace(options.Certificate.Thumbprint);
+        var hasPfx = !string.IsNullOrWhiteSpace(options.Certificate.PfxPath);
+
+        if (!hasThumbprint && !hasPfx)
+            missing.Add("Certificate:Thumbprint o Certificate:PfxPath");
+
+        if (missing.Count > 0)
+        {
+            throw new InvalidOperationException(
+                "ConfiguraciÃ³n VERI*FACTU SOAP incompleta: " +
+                string.Join(", ", missing));
+        }
+    }
+
+    private static void AddSoapClient(
+        IServiceCollection services,
+        VeriFactuOptions options)
+    {
+        services.AddSingleton<X509Certificate2>(sp =>
         {
             var loader = sp.GetRequiredService<CertificateLoader>();
-            return loader.Load(options.Certificate);
+            return loader.Load(options.Certificate)
+                ?? throw new InvalidOperationException(
+                    "SoapClient requiere un certificado cliente X.509 vÃ¡lido.");
         });
 
-        // HttpClient con handler configurado con mTLS
         services.AddHttpClient<VeriFactuGatewaySoapClient>()
             .ConfigureHttpClient(client =>
             {
                 client.Timeout = TimeSpan.FromSeconds(options.TimeoutSeconds);
-                client.DefaultRequestHeaders.Add("User-Agent", "gesFactu/1.0");
+                client.DefaultRequestHeaders.UserAgent.ParseAdd("gesFactu/1.0");
             })
             .ConfigurePrimaryHttpMessageHandler(sp =>
             {
-                var cert = sp.GetService<X509Certificate2>();
-                return CreateHttpHandler(cert, options);
+                var cert = sp.GetRequiredService<X509Certificate2>();
+                return CreateHttpHandler(cert);
             });
 
-        services.AddScoped<IVeriFactuGateway>(provider =>
-            provider.GetRequiredService<VeriFactuGatewaySoapClient>());
+        services.AddScoped<IVeriFactuGateway>(sp =>
+            sp.GetRequiredService<VeriFactuGatewaySoapClient>());
     }
 
-    private static HttpClientHandler CreateHttpHandler(X509Certificate2? clientCert, VeriFactuOptions options)
+    private static HttpClientHandler CreateHttpHandler(X509Certificate2 clientCert)
     {
         var handler = new HttpClientHandler();
+        handler.ClientCertificates.Add(clientCert);
 
-        if (clientCert != null)
-            handler.ClientCertificates.Add(clientCert);
-
-        // En entorno Test, los certificados del servidor AEAT de pruebas
-        // están firmados por la misma CA que producción — no omitir validación del servidor.
-        // Si hubiera problemas de cadena en Test, se puede relajar aquí con documentación explícita.
-
+        // Nunca se desactiva la validaciÃ³n TLS del servidor AEAT.
         return handler;
     }
 }
