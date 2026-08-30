@@ -4,14 +4,14 @@ using gesFactu.Application.Common.Abstractions;
 namespace gesFactu.Infrastructure.Integrations.VeriFactu;
 
 /// <summary>
-/// ImplementaciÛn stub mejorada de IVeriFactuGateway.
-/// Esta versiÛn simula respuestas m·s realistas incluyendo:
+/// Implementaci√≥n stub mejorada de IVeriFactuGateway.
+/// Esta versi√≥n simula respuestas m√°s realistas incluyendo:
 /// - Validaciones de NIF
 /// - Errores transitorios simulados ocasionalmente
-/// - SimulaciÛn de cancelaciÛn
-/// - Historial de envÌos
+/// - Simulaci√≥n de cancelaci√≥n
+/// - Historial de env√≠os
 /// 
-/// Para producciÛn, ser· reemplazada por una implementaciÛn real que use SOAP/WSDL.
+/// Para producci√≥n, ser√° reemplazada por una implementaci√≥n real que use SOAP/WSDL.
 /// </summary>
 public class VeriFactuGatewayStubAdvanced : IVeriFactuGateway
 {
@@ -27,7 +27,7 @@ public class VeriFactuGatewayStubAdvanced : IVeriFactuGateway
     {
         await Task.Delay(100, cancellationToken); // Simular latencia
 
-        // Validaciones b·sicas
+        // Validaciones b√°sicas
         if (string.IsNullOrWhiteSpace(request.TaxpayerNif))
             return new VeriFactuSubmissionResult
             {
@@ -80,27 +80,15 @@ public class VeriFactuGatewayStubAdvanced : IVeriFactuGateway
         VeriFactuQueryRequest request,
         CancellationToken cancellationToken)
     {
-        await Task.Delay(50, cancellationToken); // Simular latencia
-
-        lock (_lock)
-        {
-            if (_submittedRecords.TryGetValue(request.SubmissionId, out _))
-            {
-                var isCancelled = _cancelledRecords.ContainsKey(request.SubmissionId);
-                return new VeriFactuQueryResult
-                {
-                    SubmissionId = request.SubmissionId,
-                    Status = isCancelled ? "Cancelado" : "Aceptado",
-                    StatusDescription = isCancelled ? "Registro cancelado" : "Registro aceptado correctamente"
-                };
-            }
-        }
+        await Task.Delay(50, cancellationToken);
 
         return new VeriFactuQueryResult
         {
-            SubmissionId = request.SubmissionId,
-            Status = "NoEncontrado",
-            StatusDescription = "El registro no fue encontrado en AEAT"
+            FiscalYear = request.FiscalYear,
+            Period = request.Period,
+            Result = "SinDatos",
+            HasMorePages = false,
+            Records = Array.Empty<VeriFactuQueryRecord>()
         };
     }
 
@@ -134,7 +122,7 @@ public class VeriFactuGatewayStubAdvanced : IVeriFactuGateway
                 };
             }
 
-            // Simular cancelaciÛn exitosa
+            // Simular cancelaci√≥n exitosa
             _cancelledRecords[request.SubmissionId] = true;
 
             var cancellationId = Guid.NewGuid().ToString("N").Substring(0, 20);
@@ -143,7 +131,7 @@ public class VeriFactuGatewayStubAdvanced : IVeriFactuGateway
             {
                 IsAccepted = true,
                 StatusCode = "1000",
-                StatusDescription = "CancelaciÛn aceptada correctamente",
+                StatusDescription = "Cancelaci√≥n aceptada correctamente",
                 CancellationId = cancellationId,
                 ResponseCode = AeatResponseCode.Success
             };

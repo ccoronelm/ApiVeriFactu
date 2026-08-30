@@ -33,6 +33,12 @@ public sealed class VeriFactuGatewaySoapClient : IVeriFactuGateway
     private static readonly XNamespace NsResp =
         "https://www2.agenciatributaria.gob.es/static_files/common/internet/dep/aplicaciones/es/aeat/tike/cont/ws/RespuestaSuministro.xsd";
 
+    private static readonly XNamespace NsQuery =
+        VeriFactuQueryXmlCodec.NsQuery;
+
+    private static readonly XNamespace NsQueryResponse =
+        VeriFactuQueryXmlCodec.NsResponse;
+
     public VeriFactuGatewaySoapClient(
         HttpClient httpClient,
         IOptions<VeriFactuOptions> options,
@@ -91,17 +97,118 @@ public sealed class VeriFactuGatewaySoapClient : IVeriFactuGateway
             response.RawBody);
     }
 
-    public Task<VeriFactuQueryResult> QueryBillingRecordAsync(
+    public async Task<VeriFactuQueryResult> QueryBillingRecordAsync(
         VeriFactuQueryRequest request,
         CancellationToken cancellationToken = default)
-        => throw new NotImplementedException(
-            "Consulta no implementada en esta fase. Solo se soporta RegistroAlta.");
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        var queryXml = VeriFactuQueryXmlCodec.BuildRequest(request);
+
+        var requestValidation = await _xmlSchemaValidator.ValidateAsync(
+            queryXml,
+            VeriFactuXmlSchemaType.QueryRecord,
+            cancellationToken);
+
+        if (!requestValidation.IsValid)
+        {
+            throw new VeriFactuCommunicationException(
+                "La consulta AEAT no cumple ConsultaLR.xsd: " +
+                string.Join(
+                    " | ",
+                    requestValidation.Errors.Select(x => x.Message)),
+                isTransient: false);
+        }
+
+        _logger.LogInformation(
+            "Consultando AEAT [{Environment}] para NIF {TaxpayerNif}, periodo {FiscalYear}/{Period}",
+            _options.Environment,
+            request.TaxpayerNif,
+            request.FiscalYear,
+            request.Period);
+
+        var envelope = BuildQuerySoapEnvelope(queryXml);
+        var response = await SendSoapAsync(
+            _options.GetEndpoint(),
+            envelope,
+            cancellationToken);
+
+        var responseElement = response.Document
+            .Descendants(
+                NsQueryResponse + "RespuestaConsultaFactuSistemaFacturacion")
+            .FirstOrDefault()
+            ?? throw new VeriFactuCommunicationException(
+                "La respuesta SOAP no contiene RespuestaConsultaFactuSistemaFacturacion.",
+                isTransient: false);
+
+        var responseValidation = await _xmlSchemaValidator.ValidateAsync(
+            responseElement.ToString(SaveOptions.DisableFormatting),
+            VeriFactuXmlSchemaType.QueryResponse,
+            cancellationToken);
+
+        if (!responseValidation.IsValid)
+        {
+            throw new VeriFactuCommunicationException(
+                "La respuesta de consulta AEAT no cumple RespuestaConsultaLR.xsd: " +
+                string.Join(
+                    " | ",
+                    responseValidation.Errors.Select(x => x.Message)),
+                isTransient: false);
+        }
+
+        return VeriFactuQueryXmlCodec.ParseResponse(
+            responseElement,
+            response.RawBody);
+    }
 
     public Task<VeriFactuCancellationResult> CancelBillingRecordAsync(
         VeriFactuCancellationRequest request,
         CancellationToken cancellationToken = default)
         => throw new NotImplementedException(
             "Anulación no implementada en esta fase. Solo se soporta RegistroAlta.");
+
+    private static XDocument BuildQuerySoapEnvelope(string queryXml)
+    {
+        XElement queryElement;
+
+        try
+        {
+            queryElement = XElement.Parse(
+                queryXml,
+                LoadOptions.PreserveWhitespace);
+        }
+        catch (XmlException ex)
+        {
+            throw new VeriFactuCommunicationException(
+                "El XML de consulta no está bien formado.",
+                ex,
+                isTransient: false);
+        }
+
+        if (queryElement.Name !=
+            NsQuery + "ConsultaFactuSistemaFacturacion")
+        {
+            throw new VeriFactuCommunicationException(
+                "El XML de consulta no tiene la raíz oficial ConsultaFactuSistemaFacturacion.",
+                isTransient: false);
+        }
+
+        return new XDocument(
+            new XDeclaration("1.0", "UTF-8", null),
+            new XElement(
+                NsSoap + "Envelope",
+                new XAttribute(
+                    XNamespace.Xmlns + "soapenv",
+                    NsSoap.NamespaceName),
+                new XAttribute(
+                    XNamespace.Xmlns + "sfLRC",
+                    NsQuery.NamespaceName),
+                new XAttribute(
+                    XNamespace.Xmlns + "sf",
+                    NsSf.NamespaceName),
+                new XElement(NsSoap + "Header"),
+                new XElement(NsSoap + "Body", queryElement)));
+    }
 
     private static XDocument BuildRegFactuSoapEnvelope(string regFactuXml)
     {
