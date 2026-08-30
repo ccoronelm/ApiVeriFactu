@@ -257,4 +257,152 @@ public sealed class RegistroAltaXmlBuilderAdapterTests
             result.Errors,
             e => e.Message.Contains("XSD oficial requerido no encontrado", StringComparison.Ordinal));
     }
+    [Fact]
+    public async Task BuildRegFactuXml_R1S_IncluyeRectificacionYValidaXsd()
+    {
+        var xmlBuilder = new RegistroAltaXmlBuilderAdapter(
+            Options.Create(CreateOptions()));
+
+        var baseData = CreateRegistroAltaData(
+            "00000R1S",
+            "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF");
+
+        var data = new RegistroAltaData
+        {
+            IssuerNif = baseData.IssuerNif,
+            IssuerName = baseData.IssuerName,
+            InvoiceSeries = "R/",
+            InvoiceNumber = "00000R1S",
+            IssueDate = baseData.IssueDate,
+            RecipientNif = baseData.RecipientNif,
+            RecipientName = baseData.RecipientName,
+            IsSubsanacion = false,
+            TipoFactura = "R1",
+            TipoRectificativa = "S",
+            FacturasRectificadas =
+            [
+                new FacturaRectificadaData
+                {
+                    IssuerNif = baseData.IssuerNif,
+                    InvoiceSeries = "A",
+                    InvoiceNumber = "00000001",
+                    IssueDate = baseData.IssueDate
+                }
+            ],
+            ImporteRectificacion = new ImporteRectificacionData
+            {
+                BaseRectificada = 100.00m,
+                CuotaRectificada = 21.00m
+            },
+            Description = "Rectificación sustitutiva",
+            CuotaTotal = 16.80m,
+            ImporteTotal = 96.80m,
+            Detalles =
+            [
+                new DetalleDesgloseData
+                {
+                    Impuesto = "01",
+                    ClaveRegimen = "01",
+                    CalificacionOperacion = "S1",
+                    TipoImpositivo = 21m,
+                    BaseImponible = 80.00m,
+                    CuotaRepercutida = 16.80m
+                }
+            ],
+            ComputedHash = baseData.ComputedHash,
+            PreviousRecordHash = null,
+            PreviousIssueDate = null,
+            PreviousIssuerNif = null,
+            PreviousInvoiceSeries = null,
+            PreviousInvoiceNumber = null,
+            FechaHoraHusoGenRegistro = baseData.FechaHoraHusoGenRegistro
+        };
+
+        var xml = xmlBuilder.BuildRegFactuXml(data);
+        var nsSf = (System.Xml.Linq.XNamespace)
+            "https://www2.agenciatributaria.gob.es/static_files/common/internet/dep/aplicaciones/es/aeat/tike/cont/ws/SuministroInformacion.xsd";
+        var doc = System.Xml.Linq.XDocument.Parse(xml);
+
+        Assert.Equal("R1", doc.Descendants(nsSf + "TipoFactura").Single().Value);
+        Assert.Equal("S", doc.Descendants(nsSf + "TipoRectificativa").Single().Value);
+        Assert.Single(doc.Descendants(nsSf + "IDFacturaRectificada"));
+        Assert.Equal("100.00", doc.Descendants(nsSf + "BaseRectificada").Single().Value);
+        Assert.Equal("21.00", doc.Descendants(nsSf + "CuotaRectificada").Single().Value);
+
+        var result = await CreateValidator().ValidateAsync(
+            xml,
+            VeriFactuXmlSchemaType.BillingRecord);
+
+        Assert.True(
+            result.IsValid,
+            string.Join(" | ", result.Errors.Select(e => e.Message)));
+    }
+
+    [Fact]
+    public async Task BuildRegFactuXml_R4I_AdmiteImportesNegativosYOmitirImporteRectificacion()
+    {
+        var xmlBuilder = new RegistroAltaXmlBuilderAdapter(
+            Options.Create(CreateOptions()));
+
+        var baseData = CreateRegistroAltaData(
+            "00000R4I",
+            "9999999999999999999999999999999999999999999999999999999999999999");
+
+        var data = new RegistroAltaData
+        {
+            IssuerNif = baseData.IssuerNif,
+            IssuerName = baseData.IssuerName,
+            InvoiceSeries = "R/",
+            InvoiceNumber = "00000R4I",
+            IssueDate = baseData.IssueDate,
+            RecipientNif = baseData.RecipientNif,
+            RecipientName = baseData.RecipientName,
+            IsSubsanacion = false,
+            TipoFactura = "R4",
+            TipoRectificativa = "I",
+            FacturasRectificadas = Array.Empty<FacturaRectificadaData>(),
+            ImporteRectificacion = null,
+            Description = "Rectificación por diferencias",
+            CuotaTotal = -4.20m,
+            ImporteTotal = -24.20m,
+            Detalles =
+            [
+                new DetalleDesgloseData
+                {
+                    Impuesto = "01",
+                    ClaveRegimen = "01",
+                    CalificacionOperacion = "S1",
+                    TipoImpositivo = 21m,
+                    BaseImponible = -20.00m,
+                    CuotaRepercutida = -4.20m
+                }
+            ],
+            ComputedHash = baseData.ComputedHash,
+            PreviousRecordHash = null,
+            PreviousIssueDate = null,
+            PreviousIssuerNif = null,
+            PreviousInvoiceSeries = null,
+            PreviousInvoiceNumber = null,
+            FechaHoraHusoGenRegistro = baseData.FechaHoraHusoGenRegistro
+        };
+
+        var xml = xmlBuilder.BuildRegFactuXml(data);
+        var nsSf = (System.Xml.Linq.XNamespace)
+            "https://www2.agenciatributaria.gob.es/static_files/common/internet/dep/aplicaciones/es/aeat/tike/cont/ws/SuministroInformacion.xsd";
+        var doc = System.Xml.Linq.XDocument.Parse(xml);
+
+        Assert.Equal("I", doc.Descendants(nsSf + "TipoRectificativa").Single().Value);
+        Assert.Empty(doc.Descendants(nsSf + "ImporteRectificacion"));
+        Assert.Equal("-24.20", doc.Descendants(nsSf + "ImporteTotal").Single().Value);
+
+        var result = await CreateValidator().ValidateAsync(
+            xml,
+            VeriFactuXmlSchemaType.BillingRecord);
+
+        Assert.True(
+            result.IsValid,
+            string.Join(" | ", result.Errors.Select(e => e.Message)));
+    }
+
+
 }

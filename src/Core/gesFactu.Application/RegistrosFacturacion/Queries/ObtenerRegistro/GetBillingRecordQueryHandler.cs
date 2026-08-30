@@ -62,7 +62,13 @@ public sealed class GetBillingRecordQueryHandler
                 record.SubsanatesBillingRecordId,
                 record.SubsanatesBillingRecordId.HasValue,
                 record.CancelsBillingRecordId,
-                record.RecordType == gesFactu.Domain.Entities.BillingRecord.CancellationRecordType
+                record.RecordType == gesFactu.Domain.Entities.BillingRecord.CancellationRecordType,
+                record.RectifiesBillingRecordId,
+                record.RectificationType,
+                record.RectifiedBaseAmount,
+                record.RectifiedTaxAmount,
+                record.RectifiedSurchargeAmount,
+                record.InvoiceType is "R1" or "R2" or "R3" or "R4" or "R5"
             );
 
             return new Result<BillingRecordDto>.SuccessWithValue(dto);

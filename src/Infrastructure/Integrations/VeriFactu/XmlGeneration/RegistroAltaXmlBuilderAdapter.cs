@@ -132,6 +132,43 @@ public sealed class RegistroAltaXmlBuilderAdapter : IRegistroAltaXmlBuilder
                 ? new XElement(ns + "Subsanacion", "S")
                 : null,
             new XElement(ns + "TipoFactura", data.TipoFactura),
+            string.IsNullOrWhiteSpace(data.TipoRectificativa)
+                ? null
+                : new XElement(ns + "TipoRectificativa", data.TipoRectificativa),
+            data.FacturasRectificadas.Count == 0
+                ? null
+                : new XElement(
+                    ns + "FacturasRectificadas",
+                    data.FacturasRectificadas.Select(f =>
+                        new XElement(
+                            ns + "IDFacturaRectificada",
+                            new XElement(ns + "IDEmisorFactura", f.IssuerNif),
+                            new XElement(
+                                ns + "NumSerieFactura",
+                                RegistroAltaXmlBuilder.BuildNumSerieFactura(
+                                    f.InvoiceSeries,
+                                    f.InvoiceNumber)),
+                            new XElement(
+                                ns + "FechaExpedicionFactura",
+                                RegistroAltaXmlBuilder.FormatFechaAeat(f.IssueDate))))),
+            data.ImporteRectificacion is null
+                ? null
+                : new XElement(
+                    ns + "ImporteRectificacion",
+                    new XElement(
+                        ns + "BaseRectificada",
+                        RegistroAltaXmlBuilder.FormatImporte(
+                            data.ImporteRectificacion.BaseRectificada)),
+                    new XElement(
+                        ns + "CuotaRectificada",
+                        RegistroAltaXmlBuilder.FormatImporte(
+                            data.ImporteRectificacion.CuotaRectificada)),
+                    data.ImporteRectificacion.CuotaRecargoRectificado.HasValue
+                        ? new XElement(
+                            ns + "CuotaRecargoRectificado",
+                            RegistroAltaXmlBuilder.FormatImporte(
+                                data.ImporteRectificacion.CuotaRecargoRectificado.Value))
+                        : null),
             new XElement(ns + "DescripcionOperacion", data.Description),
             string.IsNullOrWhiteSpace(data.RecipientNif)
                 ? null
@@ -230,19 +267,58 @@ public sealed class RegistroAltaXmlBuilderAdapter : IRegistroAltaXmlBuilder
                 $"Faltan datos de VeriFactu:SistemaInformatico: {string.Join(", ", missing)}.");
         }
 
-        if (data.TipoFactura is not ("F1" or "F2"))
+        if (data.TipoFactura is not ("F1" or "F2" or "R1" or "R2" or "R3" or "R4" or "R5"))
         {
             throw new InvalidOperationException(
-                "RegistroAlta solo soporta F1/F2 en esta fase.");
+                "TipoFactura no soportado por RegistroAlta.");
+        }
+
+        var isRectificative = data.TipoFactura is "R1" or "R2" or "R3" or "R4" or "R5";
+        if (isRectificative)
+        {
+            if (data.TipoRectificativa is not ("I" or "S"))
+                throw new InvalidOperationException(
+                    "R1-R5 requieren TipoRectificativa I o S.");
+
+            if (data.FacturasRectificadas.Count > 1000)
+                throw new InvalidOperationException(
+                    "FacturasRectificadas no puede superar 1000 referencias.");
+
+            foreach (var reference in data.FacturasRectificadas)
+            {
+                if (string.IsNullOrWhiteSpace(reference.IssuerNif) ||
+                    reference.IssuerNif.Trim().Length != 9 ||
+                    string.IsNullOrWhiteSpace(reference.InvoiceNumber))
+                {
+                    throw new InvalidOperationException(
+                        "Cada factura rectificada requiere NIF, número/serie y fecha.");
+                }
+            }
+
+            if (data.TipoRectificativa == "S" && data.ImporteRectificacion is null)
+                throw new InvalidOperationException(
+                    "TipoRectificativa S requiere ImporteRectificacion.");
+
+            if (data.TipoRectificativa == "I" && data.ImporteRectificacion is not null)
+                throw new InvalidOperationException(
+                    "TipoRectificativa I no debe informar ImporteRectificacion.");
+        }
+        else if (!string.IsNullOrWhiteSpace(data.TipoRectificativa) ||
+                 data.FacturasRectificadas.Count > 0 ||
+                 data.ImporteRectificacion is not null)
+        {
+            throw new InvalidOperationException(
+                "Los datos de rectificación solo son válidos para R1-R5.");
         }
 
         var hasRecipientNif = !string.IsNullOrWhiteSpace(data.RecipientNif);
         var hasRecipientName = !string.IsNullOrWhiteSpace(data.RecipientName);
 
-        if (data.TipoFactura == "F1" && (!hasRecipientNif || !hasRecipientName))
+        if ((data.TipoFactura is "F1" or "R1" or "R2" or "R3" or "R4") &&
+            (!hasRecipientNif || !hasRecipientName))
         {
             throw new InvalidOperationException(
-                "RegistroAlta F1 requiere el bloque Destinatarios.");
+                "F1 y R1-R4 requieren el bloque Destinatarios.");
         }
 
         if (hasRecipientNif != hasRecipientName)

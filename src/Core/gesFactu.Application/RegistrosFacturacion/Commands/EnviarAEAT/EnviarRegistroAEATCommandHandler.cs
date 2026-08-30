@@ -205,11 +205,29 @@ public sealed class EnviarRegistroAEATCommandHandler
                     "El registro tiene huella anterior pero no referencia al RF anterior.");
             }
 
+            BillingRecord? rectifiedRecord = null;
+            if (record.RectifiesBillingRecordId.HasValue)
+            {
+                rectifiedRecord = await _repository.GetByIdAsync(
+                    record.RectifiesBillingRecordId.Value,
+                    cancellationToken);
+
+                if (rectifiedRecord is null)
+                {
+                    await transaction.RollbackAsync(cancellationToken);
+
+                    return new Result<EnviarRegistroAEATResponse>.DomainError(
+                        "RECTIFIED_INVOICE_NOT_FOUND",
+                        "No se puede reconstruir la identidad de la factura rectificada.");
+                }
+            }
+
             var request = BillingRecordToVeriFactuMapper.MapToSubmissionRequest(
                 record,
                 _xmlBuilder,
                 _cancellationXmlBuilder,
-                previousRecord);
+                previousRecord,
+                rectifiedRecord);
 
             var validation = await _xmlSchemaValidator.ValidateAsync(
                 request.SignedXmlContent,

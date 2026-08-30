@@ -33,5 +33,11 @@ public sealed record BillingRecordDto(
     int? SubsanatesBillingRecordId,
     bool IsSubsanacion,
     int? CancelsBillingRecordId,
-    bool IsCancellation
+    bool IsCancellation,
+    int? RectifiesBillingRecordId,
+    string? RectificationType,
+    decimal? RectifiedBaseAmount,
+    decimal? RectifiedTaxAmount,
+    decimal? RectifiedSurchargeAmount,
+    bool IsRectificative
 );

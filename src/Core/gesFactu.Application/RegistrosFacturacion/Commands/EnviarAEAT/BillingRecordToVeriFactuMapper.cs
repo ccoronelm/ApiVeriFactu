@@ -13,7 +13,8 @@ public static class BillingRecordToVeriFactuMapper
         BillingRecord billingRecord,
         IRegistroAltaXmlBuilder altaXmlBuilder,
         IRegistroAnulacionXmlBuilder cancellationXmlBuilder,
-        BillingRecord? previousRecord = null)
+        BillingRecord? previousRecord = null,
+        BillingRecord? rectifiedRecord = null)
     {
         ArgumentNullException.ThrowIfNull(billingRecord);
         ArgumentNullException.ThrowIfNull(altaXmlBuilder);
@@ -33,7 +34,8 @@ public static class BillingRecordToVeriFactuMapper
                 BuildAltaXml(
                     billingRecord,
                     altaXmlBuilder,
-                    previousRecord),
+                    previousRecord,
+                    rectifiedRecord),
 
             _ => throw new InvalidOperationException(
                 $"Tipo de registro no soportado: {billingRecord.RecordType}.")
@@ -50,7 +52,8 @@ public static class BillingRecordToVeriFactuMapper
     private static string BuildAltaXml(
         BillingRecord billingRecord,
         IRegistroAltaXmlBuilder xmlBuilder,
-        BillingRecord? previousRecord)
+        BillingRecord? previousRecord,
+        BillingRecord? rectifiedRecord)
     {
         var baseImponible = billingRecord.TotalAmount - billingRecord.TotalTaxAmount;
         var detalles = new List<DetalleDesgloseData>
@@ -60,7 +63,7 @@ public static class BillingRecordToVeriFactuMapper
                 Impuesto = "01",
                 ClaveRegimen = "01",
                 CalificacionOperacion = "S1",
-                TipoImpositivo = baseImponible > 0
+                TipoImpositivo = baseImponible != 0
                     ? Math.Round(
                         billingRecord.TotalTaxAmount / baseImponible * 100,
                         2)
@@ -69,6 +72,52 @@ public static class BillingRecordToVeriFactuMapper
                 CuotaRepercutida = billingRecord.TotalTaxAmount
             }
         };
+
+        if (billingRecord.RectifiesBillingRecordId.HasValue)
+        {
+            if (rectifiedRecord is null ||
+                rectifiedRecord.Id != billingRecord.RectifiesBillingRecordId.Value)
+            {
+                throw new InvalidOperationException(
+                    "La rectificativa requiere reconstruir la factura rectificada persistida.");
+            }
+        }
+        else if (rectifiedRecord is not null)
+        {
+            throw new InvalidOperationException(
+                "Se proporcionó una factura rectificada para un registro que no es rectificativo.");
+        }
+
+        var rectifiedInvoices = rectifiedRecord is null
+            ? Array.Empty<FacturaRectificadaData>()
+            : new[]
+            {
+                new FacturaRectificadaData
+                {
+                    IssuerNif = rectifiedRecord.IssuerNif,
+                    InvoiceSeries = rectifiedRecord.InvoiceSeries,
+                    InvoiceNumber = rectifiedRecord.InvoiceNumber,
+                    IssueDate = rectifiedRecord.IssueDate
+                }
+            };
+
+        ImporteRectificacionData? rectificationAmount = null;
+        if (billingRecord.RectificationType == "S")
+        {
+            if (!billingRecord.RectifiedBaseAmount.HasValue ||
+                !billingRecord.RectifiedTaxAmount.HasValue)
+            {
+                throw new InvalidOperationException(
+                    "Rectificativa S requiere BaseRectificada y CuotaRectificada.");
+            }
+
+            rectificationAmount = new ImporteRectificacionData
+            {
+                BaseRectificada = billingRecord.RectifiedBaseAmount.Value,
+                CuotaRectificada = billingRecord.RectifiedTaxAmount.Value,
+                CuotaRecargoRectificado = billingRecord.RectifiedSurchargeAmount
+            };
+        }
 
         var data = new RegistroAltaData
         {
@@ -81,6 +130,9 @@ public static class BillingRecordToVeriFactuMapper
             RecipientName = billingRecord.RecipientName,
             IsSubsanacion = billingRecord.SubsanatesBillingRecordId.HasValue,
             TipoFactura = billingRecord.InvoiceType,
+            TipoRectificativa = billingRecord.RectificationType,
+            FacturasRectificadas = rectifiedInvoices,
+            ImporteRectificacion = rectificationAmount,
             Description = billingRecord.Description,
             CuotaTotal = billingRecord.TotalTaxAmount,
             ImporteTotal = billingRecord.TotalAmount,

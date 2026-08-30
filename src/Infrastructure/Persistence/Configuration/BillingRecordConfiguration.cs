@@ -51,6 +51,19 @@ public sealed class BillingRecordConfiguration : IEntityTypeConfiguration<Billin
 
         builder.Property(e => e.SubsanatesBillingRecordId);
         builder.Property(e => e.CancelsBillingRecordId);
+        builder.Property(e => e.RectifiesBillingRecordId);
+
+        builder.Property(e => e.RectificationType)
+            .HasMaxLength(1);
+
+        builder.Property(e => e.RectifiedBaseAmount)
+            .HasPrecision(18, 2);
+
+        builder.Property(e => e.RectifiedTaxAmount)
+            .HasPrecision(18, 2);
+
+        builder.Property(e => e.RectifiedSurchargeAmount)
+            .HasPrecision(18, 2);
 
         builder.Property(e => e.PreviousBillingRecordId);
 
@@ -120,6 +133,9 @@ public sealed class BillingRecordConfiguration : IEntityTypeConfiguration<Billin
 
         builder.HasIndex(e => e.CancelsBillingRecordId)
             .HasDatabaseName("IX_BillingRecords_CancelsBillingRecordId");
+
+        builder.HasIndex(e => e.RectifiesBillingRecordId)
+            .HasDatabaseName("IX_BillingRecords_RectifiesBillingRecordId");
 
         // Soporta la lectura del último RF generado por obligado tributario
         // dentro de una transacción SERIALIZABLE.

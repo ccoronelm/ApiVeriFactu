@@ -4,6 +4,7 @@ using gesFactu.Application.Common;
 using gesFactu.Application.RegistrosFacturacion.Commands.CrearRegistro;
 using gesFactu.Application.RegistrosFacturacion.Commands.CrearSubsanacion;
 using gesFactu.Application.RegistrosFacturacion.Commands.CrearAnulacion;
+using gesFactu.Application.RegistrosFacturacion.Commands.CrearRectificativa;
 using gesFactu.Application.RegistrosFacturacion.Commands.EnviarAEAT;
 using gesFactu.Application.RegistrosFacturacion.Queries.ObtenerRegistro;
 using gesFactu.Application.Auditoría.Queries.ObtenerHistorialEnvíos;
@@ -354,6 +355,90 @@ public class BillingRecordsController : ControllerBase
     }
 
     /// <summary>
+    /// Crea una factura rectificativa R1-R5 vinculada al registro indicado.
+    /// </summary>
+    [HttpPost("{id}/rectifications")]
+    [ProducesResponseType(StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> CreateRectification(
+        int id,
+        [FromBody] CreateRectificativeBillingRecordRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await _mediator.Send(
+            new CreateRectificativeBillingRecordCommand(
+                id,
+                request.InvoiceSeries,
+                request.InvoiceNumber,
+                request.IssueDate,
+                request.InvoiceType,
+                request.RectificationType,
+                request.Description,
+                request.TotalAmount,
+                request.TotalTaxAmount),
+            cancellationToken);
+
+        return result switch
+        {
+            Result<CreateRectificativeBillingRecordResponse>.SuccessWithValue success =>
+                CreatedAtAction(
+                    nameof(GetBillingRecord),
+                    new { id = success.Value.BillingRecordId },
+                    success.Value),
+
+            Result<CreateRectificativeBillingRecordResponse>.NotFoundError notFound =>
+                NotFound(new ProblemDetails
+                {
+                    Title = "Not Found",
+                    Status = StatusCodes.Status404NotFound,
+                    Detail = $"Registro {notFound.Identifier} no encontrado",
+                    Instance = HttpContext.Request.Path
+                }),
+
+            Result<CreateRectificativeBillingRecordResponse>.ValidationError validation =>
+                BadRequest(new ProblemDetails
+                {
+                    Title = "Validation Failed",
+                    Status = StatusCodes.Status400BadRequest,
+                    Detail = validation.Message,
+                    Instance = HttpContext.Request.Path,
+                    Extensions = new Dictionary<string, object?> { { "field", validation.PropertyName } }
+                }),
+
+            Result<CreateRectificativeBillingRecordResponse>.DomainError domain =>
+                BadRequest(new ProblemDetails
+                {
+                    Title = "Business Rule Violation",
+                    Status = StatusCodes.Status400BadRequest,
+                    Detail = domain.Message,
+                    Instance = HttpContext.Request.Path
+                }),
+
+            Result<CreateRectificativeBillingRecordResponse>.ConflictError conflict =>
+                Conflict(new ProblemDetails
+                {
+                    Title = "Conflict",
+                    Status = StatusCodes.Status409Conflict,
+                    Detail = conflict.Message,
+                    Instance = HttpContext.Request.Path
+                }),
+
+            Result<CreateRectificativeBillingRecordResponse>.UnexpectedError unexpected =>
+                StatusCode(StatusCodes.Status500InternalServerError, new ProblemDetails
+                {
+                    Title = "Internal Server Error",
+                    Status = StatusCodes.Status500InternalServerError,
+                    Detail = unexpected.Message,
+                    Instance = HttpContext.Request.Path
+                }),
+
+            _ => StatusCode(StatusCodes.Status500InternalServerError)
+        };
+    }
+
+    /// <summary>
     /// Envía un registro de facturación a AEAT.
     /// 
     /// Precondición: El registro debe existir y tener un hash calculado.
@@ -504,4 +589,20 @@ public sealed record CreateBillingRecordSubsanationRequest
     public string? Description { get; init; }
     public decimal? TotalAmount { get; init; }
     public decimal? TotalTaxAmount { get; init; }
+}
+
+
+/// <summary>
+/// Solicitud para crear un RegistroAlta rectificativo.
+/// </summary>
+public sealed record CreateRectificativeBillingRecordRequest
+{
+    public required string InvoiceSeries { get; init; }
+    public required string InvoiceNumber { get; init; }
+    public required string IssueDate { get; init; }
+    public required string InvoiceType { get; init; }
+    public required string RectificationType { get; init; }
+    public required string Description { get; init; }
+    public required decimal TotalAmount { get; init; }
+    public required decimal TotalTaxAmount { get; init; }
 }

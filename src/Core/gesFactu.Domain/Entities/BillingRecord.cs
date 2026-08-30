@@ -70,6 +70,23 @@ public class BillingRecord : BaseDomainModel
     public int? CancelsBillingRecordId { get; set; }
 
     /// <summary>
+    /// Registro local cuya factura rectifica este RegistroAlta R1-R5.
+    /// </summary>
+    public int? RectifiesBillingRecordId { get; set; }
+
+    /// <summary>
+    /// Tipo de rectificación AEAT: I (incremental) o S (sustitutiva).
+    /// </summary>
+    public string? RectificationType { get; set; }
+
+    /// <summary>
+    /// Importes sustituidos, solo aplicables a rectificativas sustitutivas.
+    /// </summary>
+    public decimal? RectifiedBaseAmount { get; set; }
+    public decimal? RectifiedTaxAmount { get; set; }
+    public decimal? RectifiedSurchargeAmount { get; set; }
+
+    /// <summary>
     /// Identificador interno del RF inmediatamente anterior de la cadena.
     /// Null solo para el primer RF del obligado tributario en este SIF.
     /// </summary>
@@ -121,10 +138,10 @@ public class BillingRecord : BaseDomainModel
 
         var normalizedInvoiceType = invoiceType?.Trim().ToUpperInvariant() ?? string.Empty;
 
-        if (normalizedInvoiceType is not ("F1" or "F2"))
+        if (normalizedInvoiceType is not ("F1" or "F2" or "R1" or "R2" or "R3" or "R4" or "R5"))
         {
             throw new InvalidOperationException(
-                "BillingRecord.Create solo admite F1 o F2 en este punto del desarrollo.");
+                "TipoFactura no soportado. Valores admitidos: F1, F2, R1, R2, R3, R4 y R5.");
         }
 
         var hasRecipientNif = !string.IsNullOrWhiteSpace(recipientNif);
@@ -168,9 +185,12 @@ public class BillingRecord : BaseDomainModel
         if (description.Trim().Length > 500)
             throw new InvalidOperationException("La descripción de la operación no puede superar 500 caracteres");
 
-        if (totalTaxAmount.Amount > totalAmount.Amount)
+        if (normalizedInvoiceType is "F1" or "F2" &&
+            totalTaxAmount.Amount > totalAmount.Amount)
+        {
             throw new InvalidOperationException(
                 "La cuota de impuesto no puede ser mayor que el importe total");
+        }
 
         if (previousBillingRecordId.HasValue != !string.IsNullOrWhiteSpace(previousRecordHash))
         {

@@ -41,8 +41,19 @@ public sealed class RegistroAltaData
     /// </summary>
     public bool IsSubsanacion { get; init; }
 
-    /// <summary>Tipo de factura. "F1" para factura ordinaria.</summary>
+    /// <summary>Tipo de factura AEAT: F1, F2 o R1-R5.</summary>
     public required string TipoFactura  { get; init; }
+
+    /// <summary>Tipo de rectificativa: I (por diferencias) o S (sustitutiva).</summary>
+    public string? TipoRectificativa { get; init; }
+
+    /// <summary>Facturas identificadas como rectificadas. AEAT permite hasta 1000.</summary>
+    public IReadOnlyList<FacturaRectificadaData> FacturasRectificadas { get; init; } =
+        Array.Empty<FacturaRectificadaData>();
+
+    /// <summary>Importes de la factura sustituida. Obligatorio para TipoRectificativa=S.</summary>
+    public ImporteRectificacionData? ImporteRectificacion { get; init; }
+
     public required string Description  { get; init; }
     public required decimal CuotaTotal  { get; init; }
     public required decimal ImporteTotal { get; init; }
@@ -91,4 +102,26 @@ public sealed class DetalleDesgloseData
 
     /// <summary>Cuota repercutida.</summary>
     public decimal? CuotaRepercutida { get; init; }
+}
+
+
+/// <summary>
+/// Identidad fiscal de una factura rectificada.
+/// </summary>
+public sealed class FacturaRectificadaData
+{
+    public required string IssuerNif { get; init; }
+    public required string InvoiceSeries { get; init; }
+    public required string InvoiceNumber { get; init; }
+    public required DateOnly IssueDate { get; init; }
+}
+
+/// <summary>
+/// Desglose de los importes sustituidos en una rectificativa S.
+/// </summary>
+public sealed class ImporteRectificacionData
+{
+    public required decimal BaseRectificada { get; init; }
+    public required decimal CuotaRectificada { get; init; }
+    public decimal? CuotaRecargoRectificado { get; init; }
 }
