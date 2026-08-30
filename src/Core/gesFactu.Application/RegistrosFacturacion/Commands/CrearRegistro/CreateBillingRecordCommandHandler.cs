@@ -131,6 +131,12 @@ public sealed class CreateBillingRecordCommandHandler
             await using var transaction =
                 await _dbContext.BeginSerializableTransactionAsync(cancellationToken);
 
+            // Un solo generador puede avanzar la cadena de este obligado tributario
+            // al mismo tiempo, incluso si hay varias instancias de la API.
+            await _dbContext.AcquireFiscalChainLockAsync(
+                nif.Value,
+                cancellationToken);
+
             // Idempotencia por la identidad fiscal que se envía a AEAT.
             var existing = await _repository.GetByFiscalIdentityAsync(
                 nif.Value,
