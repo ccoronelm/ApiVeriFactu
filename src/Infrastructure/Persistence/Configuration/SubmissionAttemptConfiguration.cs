@@ -26,7 +26,7 @@ public class SubmissionAttemptConfiguration : IEntityTypeConfiguration<Submissio
 
         builder.Property(x => x.RequestPayload)
             .IsRequired()
-            .HasColumnType("nvarchar(max)");
+            .HasColumnType("text");
 
         builder.Property(x => x.SubmittedAt)
             .IsRequired();
@@ -38,7 +38,7 @@ public class SubmissionAttemptConfiguration : IEntityTypeConfiguration<Submissio
             .HasMaxLength(2000);
 
         builder.Property(x => x.ResponsePayload)
-            .HasColumnType("nvarchar(max)");
+            .HasColumnType("text");
 
         builder.Property(x => x.AeatSubmissionId)
             .HasMaxLength(100);
