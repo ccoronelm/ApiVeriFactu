@@ -326,7 +326,8 @@ namespace gesFactu.Infrastructure.Migrations
                         .HasDatabaseName("IX_SubmissionAttempts_BillingRecordId");
 
                     b.HasIndex("BillingRecordId", "AttemptNumber")
-                        .HasDatabaseName("IX_SubmissionAttempts_BillingRecordAndAttempt");
+                        .IsUnique()
+                        .HasDatabaseName("UX_SubmissionAttempts_BillingRecordAndAttempt");
 
                     b.HasIndex("Status", "SubmittedAt")
                         .HasDatabaseName("IX_SubmissionAttempts_StatusAndTime");
