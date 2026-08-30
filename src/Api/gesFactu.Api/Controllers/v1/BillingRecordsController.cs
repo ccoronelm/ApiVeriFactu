@@ -7,6 +7,7 @@ using gesFactu.Application.RegistrosFacturacion.Commands.CrearAnulacion;
 using gesFactu.Application.RegistrosFacturacion.Commands.CrearRectificativa;
 using gesFactu.Application.RegistrosFacturacion.Commands.EnviarAEAT;
 using gesFactu.Application.RegistrosFacturacion.Queries.ObtenerRegistro;
+using gesFactu.Application.RegistrosFacturacion.Queries.ObtenerQr;
 using gesFactu.Application.Auditoría.Queries.ObtenerHistorialEnvíos;
 
 namespace gesFactu.Api.Controllers.v1;
@@ -171,6 +172,92 @@ public class BillingRecordsController : ControllerBase
                     Title = "Internal Server Error",
                     Status = StatusCodes.Status500InternalServerError,
                     Detail = unexpectedError.Message,
+                    Instance = HttpContext.Request.Path
+                }),
+
+            _ => StatusCode(StatusCodes.Status500InternalServerError)
+        };
+    }
+
+    /// <summary>
+    /// Devuelve el QR tributario oficial VERI*FACTU como PNG.
+    /// </summary>
+    [HttpGet("{id}/qr")]
+    [Produces("image/png")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetQr(
+        int id,
+        CancellationToken cancellationToken)
+    {
+        var result = await _mediator.Send(
+            new GetBillingRecordQrQuery(id),
+            cancellationToken);
+
+        return result switch
+        {
+            Result<BillingRecordQrDto>.SuccessWithValue success =>
+                File(success.Value.PngBytes, "image/png"),
+
+            Result<BillingRecordQrDto>.NotFoundError notFound =>
+                NotFound(new ProblemDetails
+                {
+                    Title = "Not Found",
+                    Status = StatusCodes.Status404NotFound,
+                    Detail = $"Registro {notFound.Identifier} no encontrado",
+                    Instance = HttpContext.Request.Path
+                }),
+
+            Result<BillingRecordQrDto>.DomainError domain =>
+                BadRequest(new ProblemDetails
+                {
+                    Title = "QR Not Available",
+                    Status = StatusCodes.Status400BadRequest,
+                    Detail = domain.Message,
+                    Instance = HttpContext.Request.Path
+                }),
+
+            _ => StatusCode(StatusCodes.Status500InternalServerError)
+        };
+    }
+
+    /// <summary>
+    /// Devuelve la URL oficial de cotejo que debe incorporarse en una factura
+    /// electrónica estructurada.
+    /// </summary>
+    [HttpGet("{id}/qr/url")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetQrUrl(
+        int id,
+        CancellationToken cancellationToken)
+    {
+        var result = await _mediator.Send(
+            new GetBillingRecordQrQuery(id),
+            cancellationToken);
+
+        return result switch
+        {
+            Result<BillingRecordQrDto>.SuccessWithValue success =>
+                Ok(new { url = success.Value.VerificationUrl }),
+
+            Result<BillingRecordQrDto>.NotFoundError notFound =>
+                NotFound(new ProblemDetails
+                {
+                    Title = "Not Found",
+                    Status = StatusCodes.Status404NotFound,
+                    Detail = $"Registro {notFound.Identifier} no encontrado",
+                    Instance = HttpContext.Request.Path
+                }),
+
+            Result<BillingRecordQrDto>.DomainError domain =>
+                BadRequest(new ProblemDetails
+                {
+                    Title = "QR Not Available",
+                    Status = StatusCodes.Status400BadRequest,
+                    Detail = domain.Message,
                     Instance = HttpContext.Request.Path
                 }),
 
