@@ -192,6 +192,15 @@ public sealed class RegistroAltaXmlBuilderAdapter : IRegistroAltaXmlBuilder
                 "El NIF del registro no coincide con el obligado tributario configurado.");
         }
 
+        if (!string.Equals(
+                taxpayer.Name.Trim(),
+                data.IssuerName.Trim(),
+                StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException(
+                "El nombre o razón social del registro no coincide con el obligado tributario configurado.");
+        }
+
         var requiredSistemaFields = new Dictionary<string, string?>
         {
             ["NombreRazon"] = si.NombreRazon,
