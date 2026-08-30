@@ -80,7 +80,7 @@ public static class BillingRecordToVeriFactuMapper
             RecipientNif = billingRecord.RecipientNif,
             RecipientName = billingRecord.RecipientName,
             IsSubsanacion = billingRecord.SubsanatesBillingRecordId.HasValue,
-            TipoFactura = "F1",
+            TipoFactura = billingRecord.InvoiceType,
             Description = billingRecord.Description,
             CuotaTotal = billingRecord.TotalTaxAmount,
             ImporteTotal = billingRecord.TotalAmount,
