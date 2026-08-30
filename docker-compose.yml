@@ -14,7 +14,7 @@ services:
       Operations__AdminApiKeyFile: /run/secrets/gesfactu_admin_key
 
       VeriFactu__Environment: Production
-      VeriFactu__AllowProduction: "true"
+      VeriFactu__AllowProduction: "${GESFACTU_ALLOW_PRODUCTION:-false}"
       VeriFactu__ClientMode: SoapClient
       VeriFactu__Taxpayer__Nif: "${GESFACTU_TAXPAYER_NIF}"
       VeriFactu__Taxpayer__Name: "${GESFACTU_TAXPAYER_NAME}"
