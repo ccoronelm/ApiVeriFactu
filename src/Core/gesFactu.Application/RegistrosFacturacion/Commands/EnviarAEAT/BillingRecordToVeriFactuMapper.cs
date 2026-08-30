@@ -73,6 +73,8 @@ public static class BillingRecordToVeriFactuMapper
             InvoiceSeries = billingRecord.InvoiceSeries,
             InvoiceNumber = billingRecord.InvoiceNumber,
             IssueDate = billingRecord.IssueDate,
+            RecipientNif = billingRecord.RecipientNif,
+            RecipientName = billingRecord.RecipientName,
             TipoFactura = "F1",
             Description = billingRecord.Description,
             CuotaTotal = billingRecord.TotalTaxAmount,
