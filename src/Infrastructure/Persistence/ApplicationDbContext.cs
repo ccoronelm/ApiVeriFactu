@@ -225,8 +225,8 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
                     CurrentActor(),
                     _auditContext.CorrelationId,
                     now,
-                    oldValues: null,
-                    newValues: null));
+                    OldValues: null,
+                    NewValues: null));
                 continue;
             }
 
