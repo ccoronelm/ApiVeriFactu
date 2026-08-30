@@ -156,6 +156,11 @@ public sealed class OutboxProcessorService : BackgroundService
                     : "Aceptado",
                 cancellationToken);
 
+            await MarkCancelledSourceIfNeededAsync(
+                message.AggregateId,
+                billingRepository,
+                cancellationToken);
+
             await outboxStore.MarkAsProcessedAsync(
                 message.Id,
                 cancellationToken);
@@ -247,6 +252,11 @@ public sealed class OutboxProcessorService : BackgroundService
                         : "Aceptado",
                     cancellationToken);
 
+                await MarkCancelledSourceIfNeededAsync(
+                    message.AggregateId,
+                    billingRepository,
+                    cancellationToken);
+
                 // Esta última escritura guarda también los cambios del BillingRecord
                 // porque todos los stores comparten el mismo DbContext del scope.
                 await outboxStore.MarkAsProcessedAsync(
@@ -285,6 +295,11 @@ public sealed class OutboxProcessorService : BackgroundService
                 await billingRepository.UpdateAeatStatusAsync(
                     message.AggregateId,
                     reconciledStatus,
+                    cancellationToken);
+
+                await MarkCancelledSourceIfNeededAsync(
+                    message.AggregateId,
+                    billingRepository,
                     cancellationToken);
 
                 await outboxStore.MarkAsProcessedAsync(
@@ -550,6 +565,27 @@ public sealed class OutboxProcessorService : BackgroundService
 
         await outboxStore.MarkAsProcessedAsync(
             message.Id,
+            cancellationToken);
+    }
+
+    private static async Task MarkCancelledSourceIfNeededAsync(
+        int billingRecordId,
+        IBillingRecordRepository billingRepository,
+        CancellationToken cancellationToken)
+    {
+        var record = await billingRepository.GetByIdAsync(
+            billingRecordId,
+            cancellationToken);
+
+        if (record?.RecordType != BillingRecord.CancellationRecordType ||
+            !record.CancelsBillingRecordId.HasValue)
+        {
+            return;
+        }
+
+        await billingRepository.UpdateAeatStatusAsync(
+            record.CancelsBillingRecordId.Value,
+            "Anulado",
             cancellationToken);
     }
 
