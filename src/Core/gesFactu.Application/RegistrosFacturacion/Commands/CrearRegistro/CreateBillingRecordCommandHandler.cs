@@ -188,6 +188,21 @@ public sealed class CreateBillingRecordCommandHandler
         var totalTaxAmount =
             ((ValueObjectResult<Money>.SuccessWithValue)taxAmountResult).Value;
 
+        IReadOnlyList<BillingTaxDetail> taxDetails;
+        try
+        {
+            taxDetails = BillingTaxDetailFactory.Create(
+                command.TaxDetails,
+                totalAmount.Amount,
+                totalTaxAmount.Amount);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return new Result<CreateBillingRecordResponse>.ValidationError(
+                nameof(command.TaxDetails),
+                ex.Message);
+        }
+
         try
         {
             await using var transaction =
@@ -246,6 +261,8 @@ public sealed class CreateBillingRecordCommandHandler
                 previousRecord?.ComputedHash,
                 registerTimestamp,
                 invoiceType);
+
+            billingRecord.SetTaxDetails(taxDetails);
 
             var hashInput = new BillingRecordHashInput
             {
