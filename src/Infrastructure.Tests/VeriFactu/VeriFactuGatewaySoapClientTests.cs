@@ -47,6 +47,7 @@ public sealed class VeriFactuGatewaySoapClientTests
         Assert.Equal("3000", result.ErrorCode);
         Assert.True(result.IsDuplicate);
         Assert.Equal("Correcta", result.DuplicateRecordStatus);
+        Assert.Equal("PETICION-123", result.DuplicateRequestId);
     }
 
     [Fact]
