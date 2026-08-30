@@ -58,7 +58,7 @@ public class SubmissionAttemptConfiguration : IEntityTypeConfiguration<Submissio
         builder.HasOne(x => x.BillingRecord)
             .WithMany(br => br.SubmissionAttempts)
             .HasForeignKey(x => x.BillingRecordId)
-            .OnDelete(DeleteBehavior.Cascade);
+            .OnDelete(DeleteBehavior.Restrict);
 
         // Índices para queries frecuentes
         builder.HasIndex(x => x.BillingRecordId)
