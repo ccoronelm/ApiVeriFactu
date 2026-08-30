@@ -21,8 +21,10 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Folder Include="VeriFactu" />
-    <Folder Include="Persistence" />
+    <Content Include="..\..\VERIFACTU\*.xsd.xml">
+      <Link>VERIFACTU\%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 
 </Project>
