@@ -63,6 +63,34 @@ public static class VeriFactuServiceCollectionExtensions
 
         if (options.TimeoutSeconds <= 0)
             throw new InvalidOperationException("VeriFactu:TimeoutSeconds debe ser mayor que cero.");
+
+        var taxpayers = options.GetConfiguredTaxpayers();
+
+        if (taxpayers.Count > 1 &&
+            (options.SistemaInformatico.TipoUsoPosibleMultiOT != "S" ||
+             options.SistemaInformatico.IndicadorMultiplesOT != "S"))
+        {
+            throw new InvalidOperationException(
+                "Con varios obligados tributarios, TipoUsoPosibleMultiOT e IndicadorMultiplesOT deben ser S.");
+        }
+
+        if (taxpayers
+            .Where(x => !string.IsNullOrWhiteSpace(x.Nif))
+            .GroupBy(x => x.Nif.Trim(), StringComparer.OrdinalIgnoreCase)
+            .Any(x => x.Count() > 1))
+        {
+            throw new InvalidOperationException(
+                "No puede haber NIF duplicados en VeriFactu:Taxpayers.");
+        }
+
+        if (taxpayers
+            .Where(x => !string.IsNullOrWhiteSpace(x.Key))
+            .GroupBy(x => x.Key.Trim(), StringComparer.OrdinalIgnoreCase)
+            .Any(x => x.Count() > 1))
+        {
+            throw new InvalidOperationException(
+                "No puede haber claves duplicadas en VeriFactu:Taxpayers.");
+        }
     }
 
     private static void ValidateSoapConfiguration(VeriFactuOptions options)
