@@ -5,6 +5,7 @@ using gesFactu.Domain.Entities;
 using gesFactu.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using Microsoft.AspNetCore.Mvc;
 
 namespace gesFactu.Api.Middleware;
 
