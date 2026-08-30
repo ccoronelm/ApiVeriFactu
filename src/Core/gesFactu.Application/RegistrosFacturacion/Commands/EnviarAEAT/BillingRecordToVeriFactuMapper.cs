@@ -63,7 +63,7 @@ public static class BillingRecordToVeriFactuMapper
                 Impuesto = "01",
                 ClaveRegimen = "01",
                 CalificacionOperacion = "S1",
-                TipoImpositivo = baseImponible > 0
+                TipoImpositivo = baseImponible != 0
                     ? Math.Round(
                         billingRecord.TotalTaxAmount / baseImponible * 100,
                         2)
