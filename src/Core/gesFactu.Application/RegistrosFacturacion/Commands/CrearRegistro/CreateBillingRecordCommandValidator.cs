@@ -33,7 +33,11 @@ public sealed class CreateBillingRecordCommandValidator : AbstractValidator<Crea
         RuleFor(x => x.RecipientNif)
             .NotEmpty().WithMessage("El NIF del destinatario es requerido para F1")
             .Length(9).WithMessage("El NIF del destinatario debe tener exactamente 9 caracteres")
-            .NotEqual(x => x.IssuerNif, StringComparer.OrdinalIgnoreCase)
+            .Must((command, recipientNif) =>
+                !string.Equals(
+                    command.IssuerNif?.Trim(),
+                    recipientNif?.Trim(),
+                    StringComparison.OrdinalIgnoreCase))
             .WithMessage("El NIF del destinatario debe ser distinto del NIF del obligado emisor");
 
         RuleFor(x => x.RecipientName)
