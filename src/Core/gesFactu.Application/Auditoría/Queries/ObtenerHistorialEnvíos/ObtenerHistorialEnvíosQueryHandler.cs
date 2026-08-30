@@ -1,37 +1,39 @@
 using MediatR;
 using gesFactu.Application.Common.Abstractions;
 
-namespace gesFactu.Application.AuditorÌa.Queries.ObtenerHistorialEnvÌos;
+namespace gesFactu.Application.Auditor√≠a.Queries.ObtenerHistorialEnv√≠os;
 
 /// <summary>
-/// Handler para la query de historial de envÌos.
+/// Handler para la query de historial de env√≠os.
 /// </summary>
-public class ObtenerHistorialEnvÌosQueryHandler : IRequestHandler<ObtenerHistorialEnvÌosQuery, ObtenerHistorialEnvÌosResult>
+public sealed class ObtenerHistorialEnv√≠osQueryHandler
+    : IRequestHandler<ObtenerHistorialEnv√≠osQuery, ObtenerHistorialEnv√≠osResult>
 {
     private readonly ISubmissionAttemptStore _attemptStore;
 
-    public ObtenerHistorialEnvÌosQueryHandler(ISubmissionAttemptStore attemptStore)
+    public ObtenerHistorialEnv√≠osQueryHandler(ISubmissionAttemptStore attemptStore)
     {
         _attemptStore = attemptStore ?? throw new ArgumentNullException(nameof(attemptStore));
     }
 
-    public async Task<ObtenerHistorialEnvÌosResult> Handle(
-        ObtenerHistorialEnvÌosQuery request,
+    public async Task<ObtenerHistorialEnv√≠osResult> Handle(
+        ObtenerHistorialEnv√≠osQuery request,
         CancellationToken cancellationToken)
     {
-        var intentosDto = await _attemptStore.GetByBillingRecordIdAsync(
+        var intentos = await _attemptStore.GetByBillingRecordIdAsync(
             request.BillingRecordId,
             cancellationToken);
 
-        var tiene…xito = intentosDto.Any(a => a.Estado == "Success");
-        var primeraFecha = intentosDto.FirstOrDefault()?.FechaEnvÌo;
-        var ˙ltimaFecha = intentosDto.LastOrDefault()?.FechaRespuesta ?? intentosDto.LastOrDefault()?.FechaEnvÌo;
+        var tiene√âxito = intentos.Any(a => a.Estado == "Success");
+        var primeraFecha = intentos.FirstOrDefault()?.FechaEnv√≠o;
+        var ultimo = intentos.LastOrDefault();
+        var √∫ltimaFecha = ultimo?.FechaRespuesta ?? ultimo?.FechaEnv√≠o;
 
-        return new ObtenerHistorialEnvÌosResult(
+        return new ObtenerHistorialEnv√≠osResult(
             request.BillingRecordId,
-            intentosDto,
-            tiene…xito,
+            intentos,
+            tiene√âxito,
             primeraFecha,
-            ˙ltimaFecha);
+            √∫ltimaFecha);
     }
 }
