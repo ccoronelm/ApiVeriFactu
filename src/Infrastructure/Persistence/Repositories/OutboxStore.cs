@@ -1,11 +1,12 @@
-using Microsoft.EntityFrameworkCore;
+using System.Data;
 using gesFactu.Application.Common.Abstractions;
 using gesFactu.Domain.Entities;
+using Microsoft.EntityFrameworkCore;
 
 namespace gesFactu.Infrastructure.Persistence.Repositories;
 
 /// <summary>
-/// Implementación EF Core del almacén de outbox.
+/// ImplementaciÃ³n SQL Server del Transactional Outbox.
 /// </summary>
 public class OutboxStore : IOutboxStore
 {
@@ -20,49 +21,135 @@ public class OutboxStore : IOutboxStore
         int batchSize = 50,
         CancellationToken cancellationToken = default)
     {
+        var now = DateTime.UtcNow;
+
         var messages = await _context.OutboxMessages
-            .Where(m => !m.IsProcessed)
+            .Where(m =>
+                !m.IsProcessed &&
+                (m.NextAttemptAt == null || m.NextAttemptAt <= now) &&
+                (m.LockedUntil == null || m.LockedUntil <= now))
             .OrderBy(m => m.CreatedAt)
+            .ThenBy(m => m.Id)
             .Take(batchSize)
+            .AsNoTracking()
             .ToListAsync(cancellationToken);
 
         return messages.AsReadOnly();
     }
 
-    public async Task MarkAsProcessedAsync(long messageId, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<OutboxMessage>> ClaimPendingMessagesAsync(
+        string workerId,
+        int batchSize,
+        TimeSpan leaseDuration,
+        CancellationToken cancellationToken = default)
     {
-        var message = await _context.OutboxMessages.FindAsync(new object?[] { messageId }, cancellationToken: cancellationToken);
+        ArgumentException.ThrowIfNullOrWhiteSpace(workerId);
 
-        if (message is not null)
+        if (batchSize <= 0)
+            throw new ArgumentOutOfRangeException(nameof(batchSize));
+        if (leaseDuration <= TimeSpan.Zero)
+            throw new ArgumentOutOfRangeException(nameof(leaseDuration));
+
+        var now = DateTime.UtcNow;
+        var lockedUntil = now.Add(leaseDuration);
+
+        await using var transaction = await _context.Database.BeginTransactionAsync(
+            IsolationLevel.ReadCommitted,
+            cancellationToken);
+
+        // UPDLOCK + READPAST evita que dos workers reclamen las mismas filas.
+        // Las filas se marcan con una concesiÃ³n antes de liberar la transacciÃ³n.
+        var messages = await _context.OutboxMessages
+            .FromSqlInterpolated($$"""
+                SELECT TOP ({{batchSize}}) *
+                FROM [OutboxMessages] WITH (UPDLOCK, READPAST, ROWLOCK)
+                WHERE [IsProcessed] = 0
+                  AND ([NextAttemptAt] IS NULL OR [NextAttemptAt] <= {{now}})
+                  AND ([LockedUntil] IS NULL OR [LockedUntil] <= {{now}})
+                ORDER BY [CreatedAt], [Id]
+                """)
+            .ToListAsync(cancellationToken);
+
+        foreach (var message in messages)
         {
-            message.IsProcessed = true;
-            message.ProcessedAt = DateTime.UtcNow;
-            message.LastProcessingError = null;
-
-            await _context.SaveChangesAsync(cancellationToken);
+            message.LockedBy = workerId;
+            message.LockedUntil = lockedUntil;
         }
+
+        await _context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+
+        return messages.AsReadOnly();
     }
 
-    public async Task MarkAsFailedAsync(long messageId, string errorMessage, CancellationToken cancellationToken = default)
+    public async Task MarkAsProcessedAsync(
+        long messageId,
+        CancellationToken cancellationToken = default)
     {
-        var message = await _context.OutboxMessages.FindAsync(new object?[] { messageId }, cancellationToken: cancellationToken);
+        var message = await _context.OutboxMessages.FindAsync(
+            new object?[] { messageId },
+            cancellationToken: cancellationToken);
 
-        if (message is not null)
-        {
-            message.ProcessingAttempts++;
-            message.LastProcessingError = errorMessage;
+        if (message is null)
+            return;
 
-            await _context.SaveChangesAsync(cancellationToken);
-        }
+        message.IsProcessed = true;
+        message.ProcessedAt = DateTime.UtcNow;
+        message.LastProcessingError = null;
+        message.NextAttemptAt = null;
+        message.LockedBy = null;
+        message.LockedUntil = null;
+
+        await _context.SaveChangesAsync(cancellationToken);
     }
 
-    public async Task<OutboxMessage?> GetByCorrelationIdAsync(Guid correlationId, CancellationToken cancellationToken = default)
+    public async Task MarkAsFailedAsync(
+        long messageId,
+        string errorMessage,
+        CancellationToken cancellationToken = default)
     {
-        return await _context.OutboxMessages
-            .FirstOrDefaultAsync(m => m.CorrelationId == correlationId, cancellationToken);
+        await ScheduleRetryAsync(
+            messageId,
+            errorMessage,
+            DateTime.UtcNow,
+            cancellationToken);
     }
 
-    public async Task AddAsync(OutboxMessage message, CancellationToken cancellationToken = default)
+    public async Task ScheduleRetryAsync(
+        long messageId,
+        string errorMessage,
+        DateTime nextAttemptAtUtc,
+        CancellationToken cancellationToken = default)
+    {
+        var message = await _context.OutboxMessages.FindAsync(
+            new object?[] { messageId },
+            cancellationToken: cancellationToken);
+
+        if (message is null)
+            return;
+
+        message.ProcessingAttempts++;
+        message.LastProcessingError = errorMessage;
+        message.NextAttemptAt = nextAttemptAtUtc.Kind == DateTimeKind.Utc
+            ? nextAttemptAtUtc
+            : nextAttemptAtUtc.ToUniversalTime();
+        message.LockedBy = null;
+        message.LockedUntil = null;
+
+        await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    public Task<OutboxMessage?> GetByCorrelationIdAsync(
+        Guid correlationId,
+        CancellationToken cancellationToken = default)
+        => _context.OutboxMessages
+            .FirstOrDefaultAsync(
+                m => m.CorrelationId == correlationId,
+                cancellationToken);
+
+    public async Task AddAsync(
+        OutboxMessage message,
+        CancellationToken cancellationToken = default)
     {
         _context.OutboxMessages.Add(message);
         await _context.SaveChangesAsync(cancellationToken);
