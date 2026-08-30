@@ -83,7 +83,7 @@ public sealed class AuditAndIntegrityTests
     {
         await using var db = CreateDbContext();
 
-        var record = CreateRecord();
+        var record = CreateRecord(includeTaxDetails: false);
         db.BillingRecords.Add(record);
         await db.SaveChangesAsync();
 
@@ -93,6 +93,33 @@ public sealed class AuditAndIntegrityTests
             () => db.SaveChangesAsync());
 
         Assert.Contains("no pueden borrarse", ex.Message);
+    }
+
+    [Fact]
+    public async Task TimestampAndHashRefresh_IsAllowedOnlyDuringInitialQueueTransition()
+    {
+        await using var db = CreateDbContext();
+
+        var record = CreateRecord();
+        db.BillingRecords.Add(record);
+        await db.SaveChangesAsync();
+
+        record.RegisterTimestamp = "2026-08-30T19:00:00+02:00";
+        record.SetComputedHash(new string('B', 64));
+        record.MarkAsQueued(Guid.NewGuid());
+
+        await db.SaveChangesAsync();
+
+        Assert.True(record.IsSubmitted);
+        Assert.Equal("PendienteEnvio", record.Status);
+
+        record.RegisterTimestamp = "2026-08-30T19:01:00+02:00";
+        record.SetComputedHash(new string('C', 64));
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => db.SaveChangesAsync());
+
+        Assert.Contains("fiscalmente inmutable", ex.Message);
     }
 
     [Fact]
@@ -150,7 +177,8 @@ public sealed class AuditAndIntegrityTests
         return new ApplicationDbContext(options, auditContext);
     }
 
-    private static BillingRecord CreateRecord()
+    private static BillingRecord CreateRecord(
+        bool includeTaxDetails = true)
     {
         var nif = ((ValueObjectResult<TaxpayerNif>.SuccessWithValue)
             TaxpayerNif.Create("12345678A")).Value;
@@ -181,17 +209,20 @@ public sealed class AuditAndIntegrityTests
         record.SetComputedHash(
             new string('A', 64));
 
-        record.SetTaxDetails(
-        [
-            BillingTaxDetail.Create(
-                "01",
-                "01",
-                "S1",
-                null,
-                21m,
-                100m,
-                21m)
-        ]);
+        if (includeTaxDetails)
+        {
+            record.SetTaxDetails(
+            [
+                BillingTaxDetail.Create(
+                    "01",
+                    "01",
+                    "S1",
+                    null,
+                    21m,
+                    100m,
+                    21m)
+            ]);
+        }
 
         return record;
     }
