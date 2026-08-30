@@ -41,6 +41,7 @@ namespace gesFactu.Infrastructure.Migrations
                     b.Property<string>("LastModifiedBy").HasMaxLength(256).HasColumnType("character varying(256)");
                     b.Property<DateTime?>("LastModifiedDate").HasColumnType("timestamp with time zone");
                     b.Property<int?>("PreviousBillingRecordId").HasColumnType("integer");
+                    b.Property<int?>("SubsanatesBillingRecordId").HasColumnType("integer");
                     b.Property<string>("PreviousRecordHash").HasMaxLength(64).HasColumnType("character varying(64)");
                     b.Property<string>("RecipientName").IsRequired().HasMaxLength(120).HasColumnType("character varying(120)");
                     b.Property<string>("RecipientNif").IsRequired().HasMaxLength(9).HasColumnType("character varying(9)");
@@ -51,8 +52,9 @@ namespace gesFactu.Infrastructure.Migrations
                     b.Property<decimal>("TotalTaxAmount").HasPrecision(18, 2).HasColumnType("numeric(18,2)");
                     b.HasKey("Id");
                     b.HasIndex("PreviousBillingRecordId").HasDatabaseName("IX_BillingRecords_PreviousBillingRecordId");
+                    b.HasIndex("SubsanatesBillingRecordId").HasDatabaseName("IX_BillingRecords_SubsanatesBillingRecordId");
                     b.HasIndex("IssuerNif", "Id").HasDatabaseName("IX_BillingRecords_Issuer_GenerationOrder");
-                    b.HasIndex("IssuerNif", "FiscalInvoiceNumber", "IssueDate").IsUnique().HasDatabaseName("UX_BillingRecords_FiscalIdentity");
+                    b.HasIndex("IssuerNif", "FiscalInvoiceNumber", "IssueDate").IsUnique().HasFilter("\"SubsanatesBillingRecordId\" IS NULL").HasDatabaseName("UX_BillingRecords_FiscalIdentity");
                     b.ToTable("BillingRecords", (string)null);
                 });
 
