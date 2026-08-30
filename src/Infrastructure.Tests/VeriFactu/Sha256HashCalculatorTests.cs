@@ -83,6 +83,26 @@ public sealed class Sha256HashCalculatorTests
     }
 
     [Fact]
+    public void CalculateCancellationHash_OfficialCase3_MatchesAeatVector()
+    {
+        var input = new CancellationRecordHashInput
+        {
+            PreviousHash = "F7B94CFD8924EDFF273501B01EE5153E4CE8F259766F88CF6ACB8935802A2B97",
+            IssuerNif = "89890001K",
+            InvoiceSeries = "12345679/",
+            InvoiceNumber = "G34",
+            IssueDate = "01-01-2024",
+            RegisterTimestamp = "2024-01-01T19:20:40+01:00"
+        };
+
+        var hash = _calculator.CalculateCancellationHash(input);
+
+        Assert.Equal(
+            "177547C0D57AC74748561D054A9CEC14B4C4EA23D1BEFD6F2E69E3A388F90C68",
+            hash);
+    }
+
+    [Fact]
     public void CalculateSha256_WithKnownValue_ReturnsUppercaseHex()
     {
         var hash = _calculator.CalculateSha256("hello world");
