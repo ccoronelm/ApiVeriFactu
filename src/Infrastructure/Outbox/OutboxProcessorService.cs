@@ -279,8 +279,8 @@ public sealed class OutboxProcessorService : BackgroundService
                     reconciliationDescription,
                     result.RawResponsePayload,
                     aeatSubmissionId: null,
-                    duration,
-                    cancellationToken);
+                    durationMilliseconds: duration,
+                    cancellationToken: cancellationToken);
 
                 await billingRepository.UpdateAeatStatusAsync(
                     message.AggregateId,
