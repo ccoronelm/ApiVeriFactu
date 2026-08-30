@@ -38,8 +38,7 @@ public sealed class GetBillingRecordQueryHandler
                 return new Result<BillingRecordDto>.NotFoundError("BillingRecord", query.BillingRecordId.ToString());
             }
 
-            // Mapear a DTO reconstruyendo los identificadores desde las propiedades desnormalizadas
-            var invoiceId = $"{record.IssuerNif}/{record.InvoiceSeries}-{record.InvoiceNumber}";
+            var invoiceId = $"{record.IssuerNif}/{record.FiscalInvoiceNumber}";
 
             var dto = new BillingRecordDto(
                 record.Id,
@@ -57,7 +56,9 @@ public sealed class GetBillingRecordQueryHandler
                 record.SubmissionCorrelationId?.ToString(),
                 record.IsSubmitted,
                 record.CreateDate,
-                record.CreatedBy
+                record.CreatedBy,
+                record.SubsanatesBillingRecordId,
+                record.SubsanatesBillingRecordId.HasValue
             );
 
             return new Result<BillingRecordDto>.SuccessWithValue(dto);
