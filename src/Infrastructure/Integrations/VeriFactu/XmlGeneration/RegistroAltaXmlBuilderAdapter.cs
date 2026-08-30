@@ -110,6 +110,20 @@ public sealed class RegistroAltaXmlBuilderAdapter : IRegistroAltaXmlBuilder
                     RegistroAltaXmlBuilder.FormatImporte(d.CuotaRepercutida.Value)));
             }
 
+            if (d.TipoRecargoEquivalencia.HasValue)
+            {
+                detalle.Add(new XElement(
+                    ns + "TipoRecargoEquivalencia",
+                    RegistroAltaXmlBuilder.FormatTipo(d.TipoRecargoEquivalencia.Value)));
+            }
+
+            if (d.CuotaRecargoEquivalencia.HasValue)
+            {
+                detalle.Add(new XElement(
+                    ns + "CuotaRecargoEquivalencia",
+                    RegistroAltaXmlBuilder.FormatImporte(d.CuotaRecargoEquivalencia.Value)));
+            }
+
             desgloseElement.Add(detalle);
         }
 
@@ -345,8 +359,28 @@ public sealed class RegistroAltaXmlBuilderAdapter : IRegistroAltaXmlBuilder
             }
         }
 
-        if (data.Detalles.Count == 0)
-            throw new InvalidOperationException("RegistroAlta requiere al menos un DetalleDesglose.");
+        if (data.Detalles.Count is < 1 or > 12)
+            throw new InvalidOperationException(
+                "RegistroAlta requiere entre 1 y 12 DetalleDesglose.");
+
+        foreach (var detail in data.Detalles)
+        {
+            var hasQualification =
+                !string.IsNullOrWhiteSpace(detail.CalificacionOperacion);
+            var hasExemption =
+                !string.IsNullOrWhiteSpace(detail.OperacionExenta);
+
+            if (hasQualification == hasExemption)
+                throw new InvalidOperationException(
+                    "DetalleDesglose requiere exactamente CalificacionOperacion u OperacionExenta.");
+
+            if (detail.TipoRecargoEquivalencia.HasValue !=
+                detail.CuotaRecargoEquivalencia.HasValue)
+            {
+                throw new InvalidOperationException(
+                    "TipoRecargoEquivalencia y CuotaRecargoEquivalencia deben informarse juntos.");
+            }
+        }
 
         if (string.IsNullOrWhiteSpace(data.ComputedHash))
             throw new InvalidOperationException("RegistroAlta requiere la huella calculada.");
