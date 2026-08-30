@@ -100,7 +100,7 @@ public sealed class BillingRecordQrQueryHandlerTests
         var tax = ((ValueObjectResult<Money>.SuccessWithValue)
             Money.Create(21m)).Value;
 
-        return BillingRecord.Create(
+        var record = BillingRecord.Create(
             identifier,
             "Emisor pruebas",
             "B98588544",
@@ -108,5 +108,10 @@ public sealed class BillingRecordQrQueryHandlerTests
             "Factura prueba QR",
             total,
             tax);
+
+        record.SetComputedHash(
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
+
+        return record;
     }
 }
