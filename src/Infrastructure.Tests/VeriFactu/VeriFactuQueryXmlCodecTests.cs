@@ -80,6 +80,22 @@ public sealed class VeriFactuQueryXmlCodecTests
     }
 
     [Fact]
+    public async Task ResponseFixture_ValidaRespuestaConsultaLrOficial()
+    {
+        var validator = new XmlSchemaValidator(
+            NullLogger<XmlSchemaValidator>.Instance,
+            Path.Combine(AppContext.BaseDirectory, "VERIFACTU"));
+
+        var validation = await validator.ValidateAsync(
+            ResponseWithPagination(),
+            VeriFactuXmlSchemaType.QueryResponse);
+
+        Assert.True(
+            validation.IsValid,
+            string.Join(" | ", validation.Errors.Select(x => x.Message)));
+    }
+
+    [Fact]
     public void ParseResponse_ConPaginacion_MapeaRegistrosYClaveSiguiente()
     {
         var response = XElement.Parse(ResponseWithPagination());
