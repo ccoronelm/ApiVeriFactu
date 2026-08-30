@@ -14,6 +14,18 @@ jobs:
   build-test:
     runs-on: ubuntu-latest
 
+    services:
+      sqlserver:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: "Y"
+          MSSQL_SA_PASSWORD: "GesFactu_CI!2026_Strong"
+        ports:
+          - 1433:1433
+
+    env:
+      GESFACTU_TEST_SQLSERVER: "Server=localhost,1433;User Id=sa;Password=GesFactu_CI!2026_Strong;TrustServerCertificate=True;Encrypt=False"
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
