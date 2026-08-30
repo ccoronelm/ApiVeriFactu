@@ -327,6 +327,51 @@ public class OutboxStoreTests
         Assert.Equal("Error 3", updated.LastProcessingError); // Último error registrado
         Assert.False(updated.IsProcessed);
     }
+    [Fact]
+    public async Task RequeueAsync_ReabreMensajeCerradoYLimpiaEstadoDeReintento()
+    {
+        using var context = CreateDbContext();
+        var store = new OutboxStore(context);
+
+        var message = new OutboxMessage
+        {
+            CorrelationId = Guid.NewGuid(),
+            AggregateId = 10,
+            AggregateType = "BillingRecord",
+            EventType = "BillingRecordSubmittedToAEAT",
+            Payload = "{\"test\":\"requeue\"}",
+            CreatedAt = DateTime.UtcNow.AddMinutes(-10),
+            IsProcessed = true,
+            ProcessedAt = DateTime.UtcNow.AddMinutes(-5),
+            ProcessingAttempts = 5,
+            LastProcessingError = "AEAT unavailable",
+            NextAttemptAt = DateTime.UtcNow.AddHours(1),
+            LockedBy = "worker-old",
+            LockedUntil = DateTime.UtcNow.AddMinutes(5)
+        };
+
+        context.OutboxMessages.Add(message);
+        await context.SaveChangesAsync();
+
+        var result = await store.RequeueAsync(
+            message.Id,
+            CancellationToken.None);
+
+        Assert.True(result);
+
+        var updated = await context.OutboxMessages.SingleAsync(
+            x => x.Id == message.Id);
+
+        Assert.False(updated.IsProcessed);
+        Assert.Null(updated.ProcessedAt);
+        Assert.Equal(0, updated.ProcessingAttempts);
+        Assert.Null(updated.LastProcessingError);
+        Assert.NotNull(updated.NextAttemptAt);
+        Assert.Null(updated.LockedBy);
+        Assert.Null(updated.LockedUntil);
+    }
+
+
 }
 
 
