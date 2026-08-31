@@ -66,3 +66,9 @@ appsettings.*.json
 # OS files
 .DS_Store
 Thumbs.db
+
+# Local environment files
+.env
+.env.*
+!.env.example
+!.env.test.example
