@@ -1,0 +1,71 @@
+services:
+  gesfactu-api-test:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: gesfactu-api:test
+    container_name: gesfactu-api-test
+    restart: unless-stopped
+
+    environment:
+      # El entorno de aplicación NO es Production para que el cerrojo de
+      # Program.cs impida cualquier activación accidental de AEAT Producción.
+      ASPNETCORE_ENVIRONMENT: Staging
+
+      AllowedHosts: "${GESFACTU_TEST_ALLOWED_HOSTS:-gesfactu-api-test}"
+
+      # PostgreSQL ya existe fuera de este compose. Esta API usa una base y
+      # usuario propios dentro de esa misma instancia.
+      ConnectionStrings__DefaultConnection: "Host=${GESFACTU_TEST_DB_HOST};Port=${GESFACTU_TEST_DB_PORT:-5432};Database=${GESFACTU_TEST_DB_NAME};Username=${GESFACTU_TEST_DB_USER};Password=${GESFACTU_TEST_DB_PASSWORD}"
+
+      Security__ApiKeyFile: /run/secrets/gesfactu_api_key
+      Operations__AdminApiKeyFile: /run/secrets/gesfactu_admin_key
+
+      # TEST real de AEAT. El cerrojo de Producción queda siempre desactivado.
+      VeriFactu__Environment: Test
+      VeriFactu__AllowProduction: "false"
+      VeriFactu__ClientMode: SoapClient
+
+      VeriFactu__Taxpayer__Nif: "${GESFACTU_TEST_TAXPAYER_NIF}"
+      VeriFactu__Taxpayer__Name: "${GESFACTU_TEST_TAXPAYER_NAME}"
+      VeriFactu__Certificate__PfxPath: /run/secrets/aeat_pfx
+      VeriFactu__Certificate__PfxPasswordFile: /run/secrets/aeat_pfx_password
+
+      VeriFactu__SistemaInformatico__NombreRazon: "${GESFACTU_TEST_SYSTEM_PRODUCER_NAME}"
+      VeriFactu__SistemaInformatico__Nif: "${GESFACTU_TEST_SYSTEM_PRODUCER_NIF}"
+      VeriFactu__SistemaInformatico__NombreSistemaInformatico: "${GESFACTU_TEST_SYSTEM_NAME:-gesFactu}"
+      VeriFactu__SistemaInformatico__IdSistemaInformatico: "${GESFACTU_TEST_SYSTEM_ID}"
+      VeriFactu__SistemaInformatico__Version: "${GESFACTU_TEST_SYSTEM_VERSION:-1.0.0}"
+      VeriFactu__SistemaInformatico__NumeroInstalacion: "${GESFACTU_TEST_INSTALLATION_NUMBER:-test-01}"
+
+      # Útil en TEST; la API sigue protegida por X-GesFactu-Api-Key.
+      OpenApi__Enabled: "true"
+
+    secrets:
+      - gesfactu_api_key
+      - gesfactu_admin_key
+      - aeat_pfx
+      - aeat_pfx_password
+
+    networks:
+      - app-internal
+
+    expose:
+      - "8080"
+
+# PostgreSQL NO se crea aquí. El contenedor PostgreSQL existente y el backend
+# Python deben estar conectados a la misma red Docker externa.
+secrets:
+  gesfactu_api_key:
+    file: "${GESFACTU_TEST_API_KEY_FILE}"
+  gesfactu_admin_key:
+    file: "${GESFACTU_TEST_ADMIN_KEY_FILE}"
+  aeat_pfx:
+    file: "${GESFACTU_TEST_AEAT_PFX_FILE}"
+  aeat_pfx_password:
+    file: "${GESFACTU_TEST_AEAT_PFX_PASSWORD_FILE}"
+
+networks:
+  app-internal:
+    external: true
+    name: "${GESFACTU_TEST_DOCKER_NETWORK}"
